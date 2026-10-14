@@ -1,0 +1,171 @@
+# patterns.md — padrão de código
+
+Este doc é o alvo de qualquer feature ou refatoração: *"faça X seguindo docs/patterns.md"* deve bastar.
+Referência viva: `server/modules/reports/` + `client/modules/reports/` (módulo completo e canônico).
+
+## 1. Classes e instâncias
+
+```lua
+-- Domínio (estado e/ou regras) = class() + instância global lowerCamel no fim do ficheiro.
+ReportsService = class()
+
+function ReportsService:__init()
+    self.log = Log.scope('reports')
+    self.lastCreatedAt = {}
+end
+
+function ReportsService:close(id, actor)
+    -- early return em guard clauses, nunca pirâmide de if
+    id = math.floor(tonumber(id) or 0)
+    if (id < 1) then
+        return false, 'invalid_id'
+    end
+    ...
+    return true, 'ok', payload
+end
+
+reportsService = ReportsService()
+```
+
+- Métodos sempre com `:`; condições entre parênteses: `if (not player) then`.
+- 4 espaços, aspas simples, `('%s #%d'):format(a, b)` em vez de concatenação com `..`.
+- `__init` só quando há estado. Sem estado e sem regra não é classe — use tabela de funções (ex.: `Framework`).
+- Herança: `Child = class(Parent)`.
+- Entidades (`Report`, `OnlinePlayer`) expõem **camelCase**; conversão de snake_case acontece UMA vez,
+  no `:applyRow` chamado pelo repository.
+- `---@param` / `---@return` nos métodos públicos; `---` de cabeçalho no topo do ficheiro diz o papel dele.
+
+## 2. Nomes
+
+| Coisa | Padrão | Exemplo |
+|-------|--------|---------|
+| Ficheiro | `nome.papel.lua` (ponto) | `reports.service.lua`, `player.registry.lua` |
+| Classe | PascalCase | `ReportsService` |
+| Instância global | lowerCamel | `reportsService` |
+| Config do módulo | `<Modulo>Config` em `shared/config/<modulo>.lua` | `ReportsConfig` |
+| Enum | UPPER_SNAKE | `REPORT_STATUS.OPEN` |
+| Código de retorno | snake_case | `'too_many_open'`, `'rpc_timeout'` |
+| Tabela / coluna DB | snake_case, tabela prefixada pelo resource | `boilerplate_reports.closed_at` |
+| Campo de entidade/payload | camelCase | `authorName`, `createdAt` |
+| Evento de rede | `EVENT.X` = `<resource>:<modulo>:<acao>` | `EVENT.REPORT_CLOSED` |
+| RPC | `<modulo>.<verboCamel>` | `reports.create` |
+| ACE | `<modulo>.<acao>` | `reports.manage` |
+| Convar | `<resource>_<tema>` | `<resource>_log_level` |
+
+## 3. Retornos e erros
+
+- Tudo que pode falhar retorna **`ok:boolean, code:string, data?`**. Nada de `error()` para fluxo de negócio.
+- O caller decide o que fazer com o `code`; services não imprimem erro de validação (só logam falha inesperada).
+- `data` em erro é permitido quando ajuda o caller (`'cooldown', { retryIn = 30 }`).
+- `pcall` só em fronteiras (RPC já faz; transações; chamadas a outros resources).
+- Escritas não críticas (auditoria, telemetria, last_seen) → `Util.background('label', fn)` — nunca bloqueiam.
+
+## 4. Camadas — quem pode fazer o quê
+
+| Camada | Pode | Não pode |
+|--------|------|----------|
+| `*.schema.lua` | DDL (`Schema.table/column/seed`) | Lógica, SELECT |
+| `*.repository.lua` | SQL, hidratar entidades | Regra de negócio, eventos |
+| `*.entity.lua` | Dados + regras puras do próprio objeto (`isOpen`, `toPayload`) | SQL, rede |
+| `*.service.lua` | Regras, chamar repos/outros services, eventos unicast | SQL se o módulo TEM repository |
+| `*.events.lua` / `*.commands.lua` | Validar input, delegar a service, responder | Regra de negócio, SQL |
+| `server/api/*.lua` | Expor exports/RPC delegando a services | Qualquer lógica |
+| `client/modules/*/*.api.lua` | Wrapper de `RPC.await` | Regra de negócio |
+
+Adapters (`events`/`commands`/`api`) são **finos e lineares** — sem classes, sem helpers desnecessários.
+Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nunca** sai do módulo dono.
+
+## 5. Simplicidade primeiro
+
+- Helper local só se reutilizado em **≥2 lugares** ou se esconder lógica real. Senão, inline.
+- Um log no ponto da falha; sem camadas de log duplicadas para o mesmo erro.
+- Não criar manager/factory/wrapper para glue de 3 linhas.
+- Comentário explica **porquê**, não o quê. Código autoexplicativo > comentário.
+- Camadas só existem quando há o que separar: script minúsculo pode ser só `service` + `commands`.
+
+## 6. Rede e confiança
+
+- Server → client: **unicast sempre** (`TriggerClientEvent(evt, src, ...)`). `-1` proibido — monte a
+  audiência no server (ver `ReportsService:notifyStaff`: loop no `playerRegistry` filtrando permissão).
+- Client → server com retorno: `RPC.await(name, args)` dentro de `CreateThread` (yielda). Fire-and-forget
+  simples pode ser `TriggerServerEvent` + `RegisterNetEvent` num `*.events.lua`.
+- **`source` é confiável; os argumentos não.** Valide tipo (`type(args) == 'table'`), tamanho
+  (`utf8.len`), range e permissão no server. Nunca receba do client preço, quantidade de recompensa,
+  coordenada de spawn de item ou "sou admin".
+- Handler que faz `await` (MySQL, RPC) **cede a vez**: dois pedidos do mesmo jogador podem intercalar.
+  Marque o estado (cooldown, lock, "em andamento") **antes** do primeiro await e desfaça se falhar.
+- Estado replicado para clients (statebag) é só leitura do lado deles — efeito sensível decide-se no server.
+
+## 7. Arranque, fxmanifest e dependências
+
+- Sem `dependency` entre resources — a ordem no `server.cfg` é o contrato (`ensure oxmysql` antes).
+- Sem poll (`while ... Wait()`) esperando outro resource: verificar uma vez, logar e abortar. Quem
+  consome este resource usa `exports.<resource>:IsReady()` ou escuta `EVENT.READY`.
+- O manifest usa globs (`server/modules/**/*.lua`): **ficheiro novo em módulo não exige tocar no manifest**.
+  Por isso o código de módulo é order-independent: **nunca** use a instância de outro módulo no top-level
+  do ficheiro — só dentro de funções (runtime). `CreateCommand`/`RPC.register`/`Schema.*` no top-level
+  são OK (libs carregam antes).
+- Handlers checam `App.ready`. `CreateCommand` e os wrappers `guard`/`withPlayer` do `rpc.lua` já checam;
+  `RegisterNetEvent` cru tem de checar à mão.
+- Restart a quente funciona: o bootstrap faz o bind de quem já está online.
+
+## 8. Persistência
+
+- Tabelas no `<modulo>.schema.lua`: `CREATE TABLE IF NOT EXISTS`, InnoDB, `utf8mb4_unicode_ci`,
+  **prefixo do resource** no nome. Coluna nova = `Schema.column`. Seed idempotente = `INSERT IGNORE`.
+- Sem migração de dados elaborada: DDL idempotente; o schema nasce sozinho no arranque.
+- Jogador referenciado pelo `Framework.identifier` — sem FK para tabelas de outra framework.
+- Nunca SQL nas tabelas de outra framework/resource: use os exports dela, via bridge.
+- oxmysql devolve DATETIME em **milissegundos** → `Util.datetimeToUnix` no `:applyRow`.
+- Mutação que muda algo de um jogador online: persistir **e** atualizar a RAM/avisar o client.
+- `LIKE` com input do jogador: escapar `% _ \` antes.
+- Query por item dentro de loop → uma query agregada antes do loop, consulta ao mapa por chave.
+
+## 9. Config
+
+- Tudo que um humano pode querer ajustar vive em `shared/config/<modulo>.lua`: limites, cooldowns,
+  nomes de comando, ACE, **textos mostrados ao jogador** (indexados pelo `code` de retorno).
+- Enum partilhado client/server vive junto da config do módulo.
+- Valor que muda sem deploy → convar lida por função na config (`GetConvar(...)`).
+
+## 10. Framework (bridge)
+
+- Só `server/lib/framework.bridge.lua` sabe qual framework roda (default standalone: license + ACE).
+- O resto usa `Framework.identifier/displayName/hasPermission` ou `player:hasPermission(...)`.
+- Precisa de dinheiro, item, job? Acrescente a função **no bridge** (`Framework.removeMoney(src, n, reason)`
+  retornando `ok, code`) e use-a no service. Nunca chame `vRP.*`/`exports.qbx_core`/`ESX.*` fora do bridge.
+
+## 11. Checklist de refatoração (aplicar nesta ordem)
+
+1. Ficheiro no lugar certo? (módulo/camada — §4) Nome com ponto?
+2. Tabelas `X = {}` com estado/regras → `class()` + instância global.
+3. Retornos → `ok, code, data?`; códigos snake_case.
+4. SQL fora de repository → mover para repository (ou schema).
+5. snake_case vazando da DB para cima → confinar no `:applyRow`.
+6. Broadcasts `-1` → unicast com audiência montada no server.
+7. Polls entre resources → ordem do `server.cfg` + log de erro.
+8. Chamadas diretas à framework → bridge.
+9. Números/textos mágicos → config.
+10. Helpers de uso único → inline. Comentários de "o quê" → apagar.
+11. Atualizar `docs/api.md` se a superfície mudou.
+
+## 12. Antipadrões (erros que agentes cometem — não repita)
+
+| ❌ Errado | ✅ Certo |
+|----------|---------|
+| `exports.meu:GetAlgo(...)` inventado | Conferir em `docs/api.md` — se não está lá, não existe |
+| `TriggerClientEvent('x', -1, data)` | Loop no `playerRegistry` com unicast para a audiência |
+| `while not exports.x:IsReady() do Wait(100) end` | Checar uma vez e abortar com log, ou escutar o evento READY |
+| `RPC.await(...)` no top-level do ficheiro | Dentro de `CreateThread` ou NUI callback (yielda) |
+| Instância de outro módulo no top-level | Referenciar só dentro de funções (load order alfabético) |
+| `Service = {}` com estado | `Service = class()` + instância global |
+| `exports(...)` dentro do service | Só em `server/api/exports.lua` |
+| `MySQL.query(...)` no `*.commands.lua` | Delegar ao service → repository |
+| `return nil` / `error('sem saldo')` em regra de negócio | `return false, 'insufficient'` |
+| `RegisterNetEvent('x:darDinheiro', function(valor) ...)` | Server calcula o valor; client só pede a ação |
+| Cooldown marcado depois do `MySQL.*.await` | Marcar antes do primeiro await (pedidos intercalam) |
+| `vRP.getUserId(src)` no service | `Framework.identifier(src)` (bridge) |
+| `if #msg > 300` com texto pt-BR | `utf8.len(msg)` — `#` conta bytes, acento vale 2 |
+| `'Aguarde 2 minutos'` hardcoded no service | Texto na config, indexado pelo `code` |
+| Condição morta / checagem repetida no mesmo item | Remover; guardar o resultado num local e reusar |
+| Editar o fxmanifest para adicionar ficheiro de módulo | Globs já cobrem — só criar o ficheiro |
