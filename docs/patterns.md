@@ -82,6 +82,8 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 - Um log no ponto da falha; sem camadas de log duplicadas para o mesmo erro.
 - Não criar manager/factory/wrapper para glue de 3 linhas.
 - Comentário explica **porquê**, não o quê. Código autoexplicativo > comentário.
+- Idioma dos comentários: **inglês** no que o comprador vê (`bridge/`, `shared/config/`,
+  `fxmanifest.lua`); pt-BR no resto (código criptografado e docs).
 - Camadas só existem quando há o que separar: script minúsculo pode ser só `service` + `commands`.
 
 ## 6. Rede e confiança

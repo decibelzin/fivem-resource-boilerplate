@@ -7,8 +7,8 @@ description 'Boilerplate de resource FiveM — server autoritativo, módulos em 
 version '0.1.0'
 author 'decibelsz'
 
--- Ordem importa só nas libs. Módulos são order-independent: registam schema/handlers no load
--- e resolvem instâncias de outros módulos em runtime (dentro de funções).
+-- Order only matters for the libs. Modules are order-independent: they register schema/handlers on
+-- load and resolve other modules' instances at runtime (inside functions).
 shared_scripts {
     'shared/lib/class.lua',
     'shared/lib/log.lua',
@@ -23,7 +23,7 @@ client_scripts {
 }
 
 server_scripts {
-    '@oxmysql/lib/MySQL.lua', -- sem persistência? remova esta linha e os *.schema.lua
+    '@oxmysql/lib/MySQL.lua', -- no persistence? remove this line and the *.schema.lua files
     'server/lib/*.lua',
     'bridge/bridge.server.lua',
     'server/modules/**/*.lua',
@@ -31,7 +31,7 @@ server_scripts {
     'server/bootstrap.lua',
 }
 
--- Venda com escrow (Tebex): só isto fica aberto para o comprador — ponte com a framework e config.
+-- Escrow (Tebex): only these stay open to the buyer — the framework bridge and the config.
 escrow_ignore {
     'bridge/*.lua',
     'shared/config/*.lua',

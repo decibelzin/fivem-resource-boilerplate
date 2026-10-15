@@ -1,26 +1,27 @@
---- FICHEIRO ABERTO — liga o script à framework do seu servidor.
---- Como vem: standalone (license, nome do FiveM, permissão só por ACE). Troque o CORPO das funções
---- pelo equivalente da sua framework; não mude nomes nem argumentos. Devolva valores simples
---- (string, número, boolean). Erro aqui não derruba o script: vira log e valor padrão.
+--- OPEN FILE — connects the script to your server's framework.
+--- Out of the box: standalone (license, FiveM name, ACE-only permissions). Replace the BODY of each
+--- function with your framework's equivalent; do not rename functions or change their arguments.
+--- Return plain values (string, number, boolean). An error here never breaks the script: it is
+--- logged and the default value is used.
 Bridge = {}
 
---- Id ESTÁVEL do PERSONAGEM — é a chave com que o script grava os dados. Com vários personagens por
---- conta, devolva o id do personagem, não o da conta. nil = personagem ainda não carregado.
+--- STABLE id of the CHARACTER — the key the script stores data under. If players can have several
+--- characters per account, return the character id, not the account id. nil = character not loaded yet.
 ---@param src number
 ---@return string|number|nil
 function Bridge.identifier(src)
     return GetPlayerIdentifierByType(src, 'license')
 end
 
---- Nome mostrado no script (ex.: nome do personagem). nil = nome do FiveM.
+--- Name shown by the script (e.g. the character name). nil = FiveM name.
 ---@param src number
 ---@return string|nil
 function Bridge.displayName(src)
     return GetPlayerName(src)
 end
 
---- Permissão EXTRA além do ACE, que vale sempre (`add_ace group.admin <permissão> allow`).
---- Ex.: liberar a permissão para um grupo/cargo da sua framework.
+--- EXTRA permission on top of ACE, which always applies (`add_ace group.admin <permission> allow`).
+--- E.g. grant the permission to a group/rank from your framework.
 ---@param src number
 ---@param permission string
 ---@return boolean
@@ -28,13 +29,13 @@ function Bridge.hasPermission(src, permission)
     return false
 end
 
---- Avise o script quando o personagem fica pronto. Como vem: ao conectar. Com seleção de
---- personagem, troque pelo evento de "personagem carregado" da sua framework.
+--- Tell the script when the character is ready. Out of the box: on connect. With a character
+--- selection screen, replace it with your framework's "character loaded" event.
 AddEventHandler('playerJoining', function()
     Framework.playerLoaded(source)
 end)
 
---- Se a sua framework tem logout/troca de personagem sem desconectar, avise também:
--- AddEventHandler('<evento de personagem descarregado>', function(src)
+--- If your framework supports logout / character switch without disconnecting, tell the script too:
+-- AddEventHandler('<character unloaded event>', function(src)
 --     Framework.playerUnloaded(src)
 -- end)

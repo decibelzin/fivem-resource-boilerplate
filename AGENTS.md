@@ -52,6 +52,8 @@ sobre formato, copie o que ele faz.
 - O núcleo não conhece nem cita framework nenhuma: o que precisar dela é função na ponte (`Bridge.x` com
   default standalone + `Framework.x` no núcleo). `identifier` é **por personagem**.
 - Simplicidade primeiro: helper só se reusado em ≥2 lugares; classe só onde há estado ou regras.
+- Comentários **em inglês** no que o comprador vê (`bridge/`, `shared/config/`, `fxmanifest.lua`);
+  pt-BR no resto.
 
 ## Proibições absolutas
 

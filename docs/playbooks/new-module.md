@@ -8,6 +8,7 @@ Copie o formato, ficheiro a ficheiro, e crie só as camadas que o módulo precis
 
 1. **Config** — `shared/config/<modulo>.lua` com `<Modulo>Config = { ... }` (limites, cooldowns, ACE,
    nomes de comando, textos do jogador por `code`) e os enums partilhados. Nada no manifest (glob).
+   Ficheiro aberto ao comprador: comentários **em inglês**.
 
 2. **Eventos** — se o módulo empurra algo para o client, acrescente em `shared/constants.lua`:
    `MEU_EVENTO = ('%s:<modulo>:<acao>'):format(RESOURCE),`
@@ -46,15 +47,15 @@ Copie o formato, ficheiro a ficheiro, e crie só as camadas que o módulo precis
 O núcleo não conhece framework: a feature entra como função nova na ponte, só no script que a usa.
 
 1. **`bridge/bridge.server.lua`** (aberto) — `Bridge.x` com default que funciona em standalone e devolve
-   valor simples. O comentário é a doc do comprador: diga o que devolver.
+   valor simples. O comentário é a doc do comprador (em inglês): diga o que devolver.
    ```lua
-   --- Saldo do jogador na conta ('cash' | 'bank'). nil = servidor sem economia.
+   --- Player balance in the account ('cash' | 'bank'). nil = server has no economy.
    ---@return number|nil
    function Bridge.getMoney(src, account)
        return nil
    end
 
-   --- Tira `amount` da conta. true = tirou.
+   --- Remove `amount` from the account. true = removed.
    ---@return boolean
    function Bridge.removeMoney(src, account, amount)
        return false
@@ -111,23 +112,23 @@ comandos `/report` e `/closereport`, tipo `ReportPayload`. No `server.cfg`:
 ### `shared/config/reports.lua`
 
 ```lua
---- Reports de jogador para a staff. Tudo que um humano pode querer ajustar vive aqui.
+--- Player reports to staff. Everything a server owner may want to tweak lives here.
 ReportsConfig = {
-    --- ACE que libera fechar reports e receber o aviso de report novo.
+    --- ACE that allows closing reports and receiving new-report alerts.
     permission = 'reports.manage',
 
     commands = {
-        create = 'report', -- client: /report <mensagem>
+        create = 'report', -- player: /report <message>
         close = 'closereport', -- staff/console: /closereport <id>
     },
 
     minLength = 10,
     maxLength = 300,
-    --- Intervalo mínimo entre reports do mesmo jogador (RAM — zera no restart do resource).
+    --- Minimum seconds between reports from the same player (in memory — resets on resource restart).
     cooldownSeconds = 120,
     maxOpenPerAuthor = 3,
 
-    --- Texto mostrado ao jogador. Erros indexados pelo `code` devolvido pelo server.
+    --- Text shown to the player. Errors are keyed by the `code` returned by the server.
     messages = {
         sent = 'Report #%s enviado — a staff foi avisada.',
         closed = 'Seu report #%s foi fechado pela staff.',
