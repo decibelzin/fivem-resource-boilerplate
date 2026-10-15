@@ -1,4 +1,4 @@
---- Jogador online (RAM). Criado pelo playerRegistry no bind; some no unbind.
+--- Jogador online (RAM). Criado pelo playerRegistry no primeiro uso; sai no forget.
 OnlinePlayer = class()
 
 function OnlinePlayer:__init(source, identifier, name)

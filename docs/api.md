@@ -44,11 +44,10 @@ Contrato estável entre versões: nome, argumentos e retorno não mudam; funçã
 
 | Função | Ficheiro | Default | Contrato |
 |--------|----------|---------|----------|
-| `Bridge.identifier(src)` | `bridge/bridge.server.lua` | license | id **estável do personagem** (string/número); `nil` = não carregado |
-| `Bridge.displayName(src)` | `bridge/bridge.server.lua` | nome do FiveM | string; `nil` = nome do FiveM |
-| `Bridge.hasPermission(src, permission)` | `bridge/bridge.server.lua` | `false` | boolean, **somado** ao ACE (que vale sempre) |
-| `Framework.playerLoaded(src)` | chamado pela ponte | no `playerJoining` | personagem pronto |
-| `Framework.playerUnloaded(src)` | chamado pela ponte | — | personagem descarregado sem sair do servidor |
+| `Bridge.identifier(src)` | `bridge/bridge.server.lua` | license | id **estável do personagem** (string/número); `nil` = não carregado. Chamado uma vez por jogador (cache) |
+| `Bridge.displayName(src)` | `bridge/bridge.server.lua` | nome do FiveM | string; `nil` = nome do FiveM. Chamado junto com o identifier |
+| `Bridge.hasPermission(src, permission)` | `bridge/bridge.server.lua` | `false` | boolean, **somado** ao ACE (que vale sempre). Chamado com frequência — tem de ser barato |
+| `Framework.characterChanged(src)` | chamado pela ponte | não chamado (standalone não tem personagem) | personagem carregou/trocou/logout → tira o jogador do cache |
 | `Notify(message)` | `bridge/bridge.client.lua` | chat | mostra a mensagem ao jogador |
 
 ## Tipos

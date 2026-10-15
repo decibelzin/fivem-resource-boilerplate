@@ -99,8 +99,11 @@ O núcleo não conhece framework: a feature entra como função nova na ponte, s
 - `RPC.await` yielda: só dentro de `CreateThread`/NUI callback.
 - `#str` conta bytes — use `utf8.len(str)` para limites de texto.
 - oxmysql devolve DATETIME em ms → `Util.datetimeToUnix`.
-- Dado de jogador carrega em `Framework.onPlayerLoaded`, não no `playerJoining` (com seleção de
-  personagem, ele ainda não existe). Chave = `player.identifier`, que é por personagem.
+- Dado de jogador carrega **sob demanda** (primeiro uso, cache em RAM), invalidado em
+  `Framework.onCharacterChanged` e `playerDropped` — nunca de todos no login/arranque/restart.
+  Chave = `player.identifier`, que é por personagem.
+- O cache de jogadores (`playerRegistry`) só tem quem já usou o script: audiência por permissão é
+  loop em `GetPlayers()` com `Framework.hasPermission`.
 - Sem persistência? Não crie `*.schema.lua` e remova `@oxmysql/lib/MySQL.lua` do fxmanifest.
 
 ## Exemplo completo — `reports`
@@ -297,12 +300,13 @@ function ReportsService:__init()
 end
 
 --- Unicast para cada staff online — broadcast -1 é proibido (vaza dado e pesa na rede).
+--- GetPlayers(), não o cache: staff que ainda não usou o script também tem de ser avisado.
 function ReportsService:notifyStaff(payload)
-    playerRegistry:each(function(player)
-        if (player:hasPermission(ReportsConfig.permission)) then
-            TriggerClientEvent(EVENT.REPORT_CREATED, player.source, payload)
+    for _, src in ipairs(GetPlayers()) do
+        if (Framework.hasPermission(src, ReportsConfig.permission)) then
+            TriggerClientEvent(EVENT.REPORT_CREATED, src, payload)
         end
-    end)
+    end
 end
 
 ---@param player table OnlinePlayer
@@ -366,6 +370,7 @@ function ReportsService:close(id, actor)
     report:markClosed(actor)
     local payload = report:toPayload()
 
+    -- Só acha o autor se ele está no cache (usou o script desde o arranque) — offline não é avisado.
     local authorSource = playerRegistry:getSourceByIdentifier(report.authorIdentifier)
     if (authorSource) then
         TriggerClientEvent(EVENT.REPORT_CLOSED, authorSource, payload)

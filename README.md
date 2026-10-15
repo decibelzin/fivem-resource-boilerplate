@@ -34,9 +34,9 @@ shared/
   config/                       ABERTO no escrow — tunáveis e textos de cada módulo
 server/
   lib/command.lua · db.lua · util.lua · framework.lua (núcleo da ponte)
-  modules/player/               registry de jogadores online
+  modules/player/               cache de jogadores sob demanda
   api/exports.lua · rpc.lua     superfície pública (fina)
-  bootstrap.lua                 schema → ready → bind dos online → EVENT.READY
+  bootstrap.lua                 schema → ready → EVENT.READY
 client/
   modules/                      um diretório por módulo
 docs/

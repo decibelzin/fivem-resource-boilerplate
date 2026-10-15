@@ -7,6 +7,7 @@ Bridge = {}
 
 --- STABLE id of the CHARACTER — the key the script stores data under. If players can have several
 --- characters per account, return the character id, not the account id. nil = character not loaded yet.
+--- Called once per player, the first time the script needs them; the result is cached.
 ---@param src number
 ---@return string|number|nil
 function Bridge.identifier(src)
@@ -21,7 +22,8 @@ function Bridge.displayName(src)
 end
 
 --- EXTRA permission on top of ACE, which always applies (`add_ace group.admin <permission> allow`).
---- E.g. grant the permission to a group/rank from your framework.
+--- E.g. grant the permission to a group/rank from your framework. Called often (e.g. for every online
+--- player when the script alerts staff): keep it cheap.
 ---@param src number
 ---@param permission string
 ---@return boolean
@@ -29,13 +31,11 @@ function Bridge.hasPermission(src, permission)
     return false
 end
 
---- Tell the script when the character is ready. Out of the box: on connect. With a character
---- selection screen, replace it with your framework's "character loaded" event.
-AddEventHandler('playerJoining', function()
-    Framework.playerLoaded(source)
-end)
-
---- If your framework supports logout / character switch without disconnecting, tell the script too:
+--- If players pick a character after connecting, or can switch / log out without disconnecting, tell
+--- the script every time the character changes, so it stops using the previous one:
+-- AddEventHandler('<character loaded event>', function(src)
+--     Framework.characterChanged(src)
+-- end)
 -- AddEventHandler('<character unloaded event>', function(src)
---     Framework.playerUnloaded(src)
+--     Framework.characterChanged(src)
 -- end)

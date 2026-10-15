@@ -4,6 +4,6 @@
 RESOURCE = GetCurrentResourceName()
 
 EVENT = {
-    --- server → server (outros resources): resource pronto (schema aplicado, online re-bindados).
+    --- server → server (outros resources): resource pronto (schema aplicado).
     READY = ('%s:ready'):format(RESOURCE),
 }

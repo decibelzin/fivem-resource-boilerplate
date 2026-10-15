@@ -1,4 +1,5 @@
---- Arranque: schema → App.ready → bind de quem já está online → EVENT.READY.
+--- Arranque: schema → App.ready → EVENT.READY. Jogadores entram no cache sob demanda
+--- (playerRegistry:get): restart a quente não varre quem já está online.
 --- Pré-requisito: `ensure oxmysql` e a framework ANTES deste resource no server.cfg (sem poll, sem dependency).
 App = { ready = false }
 
@@ -17,17 +18,6 @@ CreateThread(function()
     end
 
     App.ready = true
-
-    -- Restart a quente: o evento de personagem carregado não dispara de novo para quem já está dentro.
-    -- no_identifier = ainda na seleção de personagem; o bind vem no Framework.onPlayerLoaded.
-    local players = GetPlayers()
-    for _, src in ipairs(players) do
-        local bindOk, bindCode = playerRegistry:bind(src)
-        if (not bindOk and bindCode ~= 'no_identifier') then
-            log:warn('bind src=%s falhou: %s', src, bindCode)
-        end
-    end
-
     TriggerEvent(EVENT.READY)
-    log:info('pronto — %d jogador(es) online', #players)
+    log:info('pronto')
 end)

@@ -5,8 +5,7 @@
 Framework = {}
 
 local log = Log.scope('bridge')
-local loadedHandlers = {}
-local unloadedHandlers = {}
+local changedHandlers = {}
 
 --- Código do comprador com erro vira log e `ok = false`, nunca derruba o fluxo do script.
 local function call(name, ...)
@@ -17,13 +16,7 @@ local function call(name, ...)
     return ok, result
 end
 
-local function emit(handlers, src)
-    for _, handler in ipairs(handlers) do
-        handler(src)
-    end
-end
-
---- Chave estável do PERSONAGEM (persistência, índices). nil = nenhum carregado → bind falha.
+--- Chave estável do PERSONAGEM (persistência, índices). nil = nenhum carregado → fora do cache.
 ---@param src number
 ---@return string|nil
 function Framework.identifier(src)
@@ -57,23 +50,18 @@ function Framework.hasPermission(src, permission)
     return ok and allowed == true
 end
 
---- Chamados pelo bridge aberto quando a framework avisa que o personagem carregou / descarregou.
-function Framework.playerLoaded(src)
-    emit(loadedHandlers, tonumber(src))
+--- Chamado pela ponte aberta quando o personagem do jogador muda (carregou, trocou, logout).
+---@param src number
+function Framework.characterChanged(src)
+    src = tonumber(src)
+    for _, handler in ipairs(changedHandlers) do
+        handler(src)
+    end
 end
 
-function Framework.playerUnloaded(src)
-    emit(unloadedHandlers, tonumber(src))
-end
-
---- Personagem pronto (identifier disponível). Carregue dado de jogador aqui, nunca no playerJoining.
+--- Invalidação de cache por jogador: o próximo uso resolve o personagem atual. Saída do servidor
+--- não passa aqui — é `playerDropped`.
 ---@param handler fun(src: number)
-function Framework.onPlayerLoaded(handler)
-    table.insert(loadedHandlers, handler)
-end
-
---- Personagem descarregado sem sair do servidor (logout / troca). Saída do servidor = `playerDropped`.
----@param handler fun(src: number)
-function Framework.onPlayerUnloaded(handler)
-    table.insert(unloadedHandlers, handler)
+function Framework.onCharacterChanged(handler)
+    table.insert(changedHandlers, handler)
 end

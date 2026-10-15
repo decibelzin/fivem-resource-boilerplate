@@ -7,7 +7,7 @@
 
 Boilerplate de resource FiveM em **Lua 5.4**, **server-autoritativo**. A raiz do repo **é** o resource:
 clona-se para `resources/[scripts]/<nome>` e dá-se `ensure`. Traz só a estrutura: libs (class, log, RPC,
-schema, comandos), registry de jogadores, a ponte aberta com a framework e os docs. Nenhum módulo de
+schema, comandos), cache de jogadores sob demanda, a ponte aberta com a framework e os docs. Nenhum módulo de
 feature — o exemplo canônico (`reports`, completo) vive em `docs/playbooks/new-module.md`: na dúvida
 sobre formato, copie o que ele faz.
 
@@ -20,7 +20,7 @@ sobre formato, copie o que ele faz.
 | `server/lib/` | `Schema` (DDL declarativo), `CreateCommand`, `Util`, `Framework` (núcleo da ponte) |
 | `server/modules/<modulo>/` | Domínio em camadas: `schema` · `repository` · `entity` · `service` · `events` · `commands` |
 | `server/api/` | Superfície pública: `exports.lua` (server → server) e `rpc.lua` (client → server) |
-| `server/bootstrap.lua` | Schema → `App.ready` → bind de quem já está online → `EVENT.READY` |
+| `server/bootstrap.lua` | Schema → `App.ready` → `EVENT.READY` (jogadores entram no cache sob demanda, nunca em massa) |
 | `client/modules/<modulo>/` | `*.api.lua` (wrapper RPC) · `*.events.lua` · `*.commands.lua` |
 | `docs/` | Padrão (`patterns.md`), contrato (`api.md`), receitas (`playbooks/`), `prompts.md`, `decisions.md` |
 

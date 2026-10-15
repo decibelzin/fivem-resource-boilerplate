@@ -12,8 +12,14 @@ As decisões do projeto entram acima da base herdada do boilerplate.
   servidor tem versão, fork e modificação próprios — um adapter pronto chutaria e quebraria em silêncio;
   quem conhece o servidor é quem o roda. O núcleo protege contra erro no código do comprador (`pcall` +
   log) e confere o retorno. Função de ponte publicada não muda de nome nem de retorno entre versões.
-- **Identifier por personagem.** Dado de jogo pertence ao personagem, não à conta. Por isso o registry
-  faz bind quando a ponte avisa "personagem carregado", não no `playerJoining`.
+- **Identifier por personagem.** Dado de jogo pertence ao personagem, não à conta. Por isso a ponte avisa
+  troca de personagem e o cache de jogadores é invalidado nela.
+- **Cache de jogadores sob demanda.** O `playerRegistry` só guarda quem o script já usou: entra na
+  primeira necessidade (uma chamada à ponte) e sai no `playerDropped` ou na troca de personagem. Nada é
+  feito para todos os online no arranque, no restart a quente ou no login. Porquê: o custo por jogador
+  depende da ponte do comprador e dos módulos — desconhecido — e um servidor com milhares online
+  travaria a thread num restart. Contrapartida: audiência por permissão percorre `GetPlayers()`, e o
+  índice identifier → source só acha quem está no cache.
 - **ACE vale sempre.** `add_ace` funciona em qualquer servidor; a ponte só soma permissões.
 - **Eventos prefixados por `GetCurrentResourceName()`.** Renomear a pasta não exige caçar strings e dois
   resources feitos do boilerplate nunca colidem. RPC já é isolado por resource na própria lib.

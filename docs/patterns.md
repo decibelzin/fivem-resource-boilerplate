@@ -89,7 +89,8 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 ## 6. Rede e confiança
 
 - Server → client: **unicast sempre** (`TriggerClientEvent(evt, src, ...)`). `-1` proibido — monte a
-  audiência no server (ver `notifyStaff` no exemplo do playbook: loop no `playerRegistry` filtrando permissão).
+  audiência no server (ver `notifyStaff` no exemplo do playbook: loop em `GetPlayers()` filtrando com
+  `Framework.hasPermission` — o cache de jogadores só tem quem já usou o script).
 - Client → server com retorno: `RPC.await(name, args)` dentro de `CreateThread` (yielda). Fire-and-forget
   simples pode ser `TriggerServerEvent` + `RegisterNetEvent` num `*.events.lua`.
 - **`source` é confiável; os argumentos não.** Valide tipo (`type(args) == 'table'`), tamanho
@@ -110,7 +111,8 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
   são OK (libs carregam antes).
 - Handlers checam `App.ready`. `CreateCommand` e os wrappers `guard`/`withPlayer` do `rpc.lua` já checam;
   `RegisterNetEvent` cru tem de checar à mão.
-- Restart a quente funciona: o bootstrap faz o bind de quem já está online.
+- Restart a quente funciona sem varrer ninguém: jogadores entram no cache sob demanda (`playerRegistry:get`
+  resolve pela ponte no primeiro uso). Nunca faça trabalho por jogador para todos os online no arranque.
 
 ## 8. Persistência
 
@@ -140,8 +142,10 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
   simples (string, número, boolean). O comprador troca o corpo; nome, argumentos e retorno são contrato.
 - O núcleo (`server/lib/framework.lua`) chama `Bridge.*` protegido (`pcall` + log), confere o tipo do
   retorno e converte para o padrão do script. Os módulos só usam `Framework.*` ou `player:hasPermission`.
-- **`Framework.identifier` é por personagem**: dado de jogo pertence ao personagem, não à conta. Personagem
-  só existe depois da seleção: carregue dado de jogador em `Framework.onPlayerLoaded`, nunca no `playerJoining`.
+- **`Framework.identifier` é por personagem**: dado de jogo pertence ao personagem, não à conta.
+- Dado de jogador carrega **sob demanda** (primeiro uso, cache em RAM) e é invalidado em
+  `Framework.onCharacterChanged` e `playerDropped`. Nunca carregue de todos no login, no arranque ou no
+  restart: o custo da ponte do comprador é desconhecido e servidor grande tem milhares online.
 - Permissão = ACE (vale sempre) **ou** `Bridge.hasPermission` (o comprador só soma).
 - Feature que precisa da framework (dinheiro, item, job…) = função nova na ponte, só no script que usa:
   `Bridge.x` com default + `Framework.x` no núcleo + linha em `docs/api.md` (receita no playbook).
@@ -168,7 +172,7 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 | ❌ Errado | ✅ Certo |
 |----------|---------|
 | `exports.meu:GetAlgo(...)` inventado | Conferir em `docs/api.md` — se não está lá, não existe |
-| `TriggerClientEvent('x', -1, data)` | Loop no `playerRegistry` com unicast para a audiência |
+| `TriggerClientEvent('x', -1, data)` | Loop em `GetPlayers()` com unicast para a audiência |
 | `while not exports.x:IsReady() do Wait(100) end` | Checar uma vez e abortar com log, ou escutar o evento READY |
 | `RPC.await(...)` no top-level do ficheiro | Dentro de `CreateThread` ou NUI callback (yielda) |
 | Instância de outro módulo no top-level | Referenciar só dentro de funções (load order alfabético) |
@@ -179,7 +183,7 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 | `RegisterNetEvent('x:darDinheiro', function(valor) ...)` | Server calcula o valor; client só pede a ação |
 | Cooldown marcado depois do `MySQL.*.await` | Marcar antes do primeiro await (pedidos intercalam) |
 | Export/função da framework chamado no service | Função na ponte; o service usa `Framework.x` |
-| Carregar dado de jogador no `playerJoining` | `Framework.onPlayerLoaded` — com multichar o personagem ainda não existe |
+| Carregar dado de todos os online no arranque/restart/login | Sob demanda no primeiro uso, invalidado em `onCharacterChanged`/`playerDropped` |
 | `if #msg > 300` com texto pt-BR | `utf8.len(msg)` — `#` conta bytes, acento vale 2 |
 | `'Aguarde 2 minutos'` hardcoded no service | Texto na config, indexado pelo `code` |
 | Condição morta / checagem repetida no mesmo item | Remover; guardar o resultado num local e reusar |
