@@ -63,7 +63,7 @@ function PlayerRegistry:unbind(source)
     end
 
     self.bySource[source] = nil
-    -- mesma license conectada 2× (dev/multi-client): só limpa o índice se ainda aponta para este source.
+    -- mesmo identifier conectado 2× (dev/multi-client): só limpa o índice se ainda aponta para este source.
     if (self.byIdentifier[player.identifier] == source) then
         self.byIdentifier[player.identifier] = nil
     end

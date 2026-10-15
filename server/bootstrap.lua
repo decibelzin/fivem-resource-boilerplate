@@ -1,10 +1,14 @@
---- Arranque: schema → App.ready → bind de quem já está online → EVENT.READY.
---- Pré-requisito: `ensure oxmysql` ANTES deste resource no server.cfg (sem poll, sem dependency).
+--- Arranque: framework → schema → App.ready → bind de quem já está online → EVENT.READY.
+--- Pré-requisito: `ensure oxmysql` e a framework ANTES deste resource no server.cfg (sem poll, sem dependency).
 App = { ready = false }
 
 local log = Log.scope('bootstrap')
 
 CreateThread(function()
+    if (not Framework.isActive()) then
+        return -- o bridge já logou o motivo
+    end
+
     if (#Schema.tables > 0 and GetResourceState('oxmysql') ~= 'started') then
         log:error('oxmysql não está started — ensure oxmysql antes deste resource no server.cfg')
         return
@@ -18,11 +22,12 @@ CreateThread(function()
 
     App.ready = true
 
-    -- Restart a quente: playerJoining não dispara de novo para quem já está conectado.
+    -- Restart a quente: o evento de personagem carregado não dispara de novo para quem já está dentro.
+    -- no_identifier = ainda na seleção de personagem; o bind vem no Framework.onPlayerLoaded.
     local players = GetPlayers()
     for _, src in ipairs(players) do
         local bindOk, bindCode = playerRegistry:bind(src)
-        if (not bindOk) then
+        if (not bindOk and bindCode ~= 'no_identifier') then
             log:warn('bind src=%s falhou: %s', src, bindCode)
         end
     end

@@ -56,13 +56,14 @@ function CommandManager:register(name, handler, access)
     RegisterCommand(name, function(invokerSource, args, rawCommand)
         local ctx = self:buildContext(invokerSource)
 
-        if (not self:canExecute(ctx, access)) then
-            self:reply(ctx, 'Sem permissão.')
+        -- App.ready antes da permissão: sem arranque não há adapter de framework a consultar.
+        if (not App.ready) then
+            self:reply(ctx, 'O resource ainda não terminou o arranque.')
             return
         end
 
-        if (not App.ready) then
-            self:reply(ctx, 'O resource ainda não terminou o arranque.')
+        if (not self:canExecute(ctx, access)) then
+            self:reply(ctx, 'Sem permissão.')
             return
         end
 

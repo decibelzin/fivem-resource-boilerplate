@@ -1,9 +1,19 @@
 # api.md — superfície pública
 
-> Fonte de verdade de exports, RPC, eventos e comandos. **Se não está aqui, não existe.**
-> Mudou `server/api/*.lua`, `EVENT` ou um comando? Atualize este ficheiro no mesmo commit.
+> Fonte de verdade de exports, RPC, eventos, comandos e convars. **Se não está aqui, não existe.**
+> Mudou `server/api/*.lua`, `EVENT`, um comando ou uma convar? Atualize este ficheiro no mesmo commit.
 
 Retorno de tudo que pode falhar: **`ok:boolean, code:string, data?`**.
+
+## Convars (server.cfg)
+
+| Convar | Valores | Default | Notas |
+|--------|---------|---------|-------|
+| `<resource>_framework` | `auto` · `standalone` · `qbox` · `qbcore` · `esx` · `vrp` | `auto` | Lida UMA vez no load (restart do resource para trocar). `auto` = primeiro started de `qbx_core` > `qb-core` > `es_extended` > `vrp`, senão standalone. Valor inválido → warn + `auto`. Escolhida e parada → erro e o resource não fica pronto. Use **`setr`**: o client (notify) faz a mesma escolha; com `set` ele cai no `auto`. |
+| `<resource>_log_level` | `debug` · `info` · `warn` · `error` | `info` | Lida a cada log. |
+
+A framework escolhida muda o que `identifier` significa (por personagem: citizenid / identifier do ESX /
+Passport; standalone: license) — dados persistidos com uma não servem na outra.
 
 ## Exports (server → server)
 

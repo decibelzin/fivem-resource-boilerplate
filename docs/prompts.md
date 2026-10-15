@@ -10,8 +10,9 @@ quem pode o quê, o que persiste>.
 Siga AGENTS.md e docs/playbooks/new-module.md, copiando o formato de server/modules/reports/.
 - Atualize fxmanifest (name/description) e troque o prefixo `boilerplate_` das tabelas por `<nome>_`.
 - Crie os módulos necessários; quando o primeiro módulo real estiver pronto, remova o exemplo `reports`
-  inteiro (config, schema, server, client, api, EVENT e docs/api.md).
-- Framework do servidor: <standalone | vRP | QBox | ESX> — adapte só server/lib/framework.bridge.lua.
+  inteiro (config, schema, server, client, api, EVENT, a entrada em FrameworkConfig.groups e docs/api.md).
+- Framework do servidor: <auto | standalone | qbox | qbcore | esx | vrp> (convar `<nome>_framework`);
+  grupos de staff em FrameworkConfig.groups. Nada fora de server/bridge/ chama a framework.
 Pergunte só decisões de produto, não de estilo.
 ```
 
@@ -29,11 +30,13 @@ Refatore `<arquivo|pasta>` seguindo docs/patterns.md (checklist §11), mantendo 
 Liste o que mudou de contrato (eventos/exports) antes de mexer.
 ```
 
-## Portar para a framework do servidor
+## Ajustar o adapter à versão da framework do servidor
 
 ```text
-Porte server/lib/framework.bridge.lua para <vRP | QBox | ESX>: identifier estável, nome e permissão.
-Nada fora do bridge pode chamar a framework diretamente.
+Ajuste server/bridge/<vrp | qbox | qbcore | esx>.lua à versão de <framework> deste servidor (código em
+<caminho do resource da framework>): confira cada chamada, sobretudo as marcadas [confirmar], contra o
+código real e corrija nome/argumento/retorno. Mantenha a interface do adapter descrita em
+server/lib/framework.bridge.lua e o identifier por personagem. Nada fora de server/bridge/ chama a framework.
 ```
 
 ## Review antes do commit

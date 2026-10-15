@@ -13,6 +13,7 @@ shared_scripts {
     'shared/lib/class.lua',
     'shared/lib/log.lua',
     'shared/lib/rpc.lua',
+    'shared/lib/framework.lua',
     'shared/constants.lua',
     'shared/config/*.lua',
 }
@@ -25,6 +26,7 @@ client_scripts {
 server_scripts {
     '@oxmysql/lib/MySQL.lua', -- sem persistência? remova esta linha e os *.schema.lua
     'server/lib/*.lua',
+    'server/bridge/*.lua', -- depois de lib/ (Framework.register), antes dos módulos; só a escolhida ativa
     'server/modules/**/*.lua',
     'server/api/*.lua',
     'server/bootstrap.lua',

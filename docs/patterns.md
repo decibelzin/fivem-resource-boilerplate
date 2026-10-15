@@ -114,7 +114,7 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 - Tabelas no `<modulo>.schema.lua`: `CREATE TABLE IF NOT EXISTS`, InnoDB, `utf8mb4_unicode_ci`,
   **prefixo do resource** no nome. Coluna nova = `Schema.column`. Seed idempotente = `INSERT IGNORE`.
 - Sem migração de dados elaborada: DDL idempotente; o schema nasce sozinho no arranque.
-- Jogador referenciado pelo `Framework.identifier` — sem FK para tabelas de outra framework.
+- Jogador referenciado pelo `Framework.identifier` (por personagem) — sem FK para tabelas de outra framework.
 - Nunca SQL nas tabelas de outra framework/resource: use os exports dela, via bridge.
 - oxmysql devolve DATETIME em **milissegundos** → `Util.datetimeToUnix` no `:applyRow`.
 - Mutação que muda algo de um jogador online: persistir **e** atualizar a RAM/avisar o client.
@@ -130,10 +130,23 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 
 ## 10. Framework (bridge)
 
-- Só `server/lib/framework.bridge.lua` sabe qual framework roda (default standalone: license + ACE).
-- O resto usa `Framework.identifier/displayName/hasPermission` ou `player:hasPermission(...)`.
-- Precisa de dinheiro, item, job? Acrescente a função **no bridge** (`Framework.removeMoney(src, n, reason)`
-  retornando `ok, code`) e use-a no service. Nunca chame `vRP.*`/`exports.qbx_core`/`ESX.*` fora do bridge.
+- Só o bridge conhece a framework: `server/lib/framework.bridge.lua` (contrato `Framework.*`) + um
+  adapter por framework em `server/bridge/<nome>.lua` — `standalone`, `qbox`, `qbcore`, `esx`, `vrp`.
+- Escolha **uma vez** no load: convar `<resource>_framework` (`auto` | nome). `auto` detecta por
+  `GetResourceState` na ordem `qbx_core` > `qb-core` > `es_extended` > `vrp` > standalone. Sem poll: a
+  framework sobe antes no `server.cfg`; escolhida mas parada → loga e o resource não fica pronto.
+- Cada adapter chama `Framework.register(nome, factory)`; só a factory da escolhida corre. Por isso os
+  globs continuam order-independent e nenhum código de framework não usada executa.
+- O resto usa `Framework.identifier/displayName/hasPermission/getMoney/addMoney/removeMoney` ou
+  `player:hasPermission(...)`. Contas: `MONEY_ACCOUNT.CASH/BANK`; valor inteiro > 0, calculado no server.
+- **`Framework.identifier` é por personagem** (citizenid · identifier do ESX · Passport do vRP;
+  standalone = license). Dado de jogo pertence ao personagem, não à conta. Personagem só existe depois da
+  seleção: carregue dado de jogador em `Framework.onPlayerLoaded`, nunca no `playerJoining`.
+- Permissão = ACE (vale em todas) **ou** um dos grupos nativos de `FrameworkConfig.groups[permissão]`.
+- Precisa de item, job…? Acrescente a função no contrato do bridge (retorno `ok, code`) **e** nos 5
+  adapters (standalone: `'not_supported'`). Assinatura da framework na dúvida → comentário `[confirmar]`,
+  nunca inventada. Nunca chame `vRP.*`/`exports.qbx_core`/`ESX.*` fora de `server/bridge/`.
+- Client: `Notify` usa o notify nativo da mesma framework (mesma `ResolveFramework`), fallback no chat.
 
 ## 11. Checklist de refatoração (aplicar nesta ordem)
 
@@ -165,6 +178,7 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 | `RegisterNetEvent('x:darDinheiro', function(valor) ...)` | Server calcula o valor; client só pede a ação |
 | Cooldown marcado depois do `MySQL.*.await` | Marcar antes do primeiro await (pedidos intercalam) |
 | `vRP.getUserId(src)` no service | `Framework.identifier(src)` (bridge) |
+| Carregar dado de jogador no `playerJoining` | `Framework.onPlayerLoaded` — com multichar o personagem ainda não existe |
 | `if #msg > 300` com texto pt-BR | `utf8.len(msg)` — `#` conta bytes, acento vale 2 |
 | `'Aguarde 2 minutos'` hardcoded no service | Texto na config, indexado pelo `code` |
 | Condição morta / checagem repetida no mesmo item | Remover; guardar o resultado num local e reusar |

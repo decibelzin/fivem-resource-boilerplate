@@ -58,18 +58,40 @@ Crie só as camadas que o módulo precisa (simplicidade primeiro).
 
 ## Integração com a framework
 
-Precisa de dinheiro/item/job? Acrescente a função no `server/lib/framework.bridge.lua` com retorno
-`ok, code` e use no service. Ex.:
+Dinheiro já está no contrato — use no service, com o valor calculado no server:
 
 ```lua
----@return boolean ok, string code
-function Framework.removeMoney(src, amount, reason)
-    -- QBox: if (exports.qbx_core:RemoveMoney(src, 'cash', amount, reason)) then return true, 'ok' end
-    -- vRP:  if (vRP.tryPayment(vRP.getUserId(src), amount)) then return true, 'ok' end
-    --       return false, 'insufficient'
+local ok, code = Framework.removeMoney(player.source, MONEY_ACCOUNT.BANK, MeuConfig.price, 'meu_modulo:compra')
+if (not ok) then
+    return false, code -- insufficient · not_loaded · invalid_amount · not_supported (standalone) · failed
+end
+```
+
+Precisa de algo que não está (item, job…)? Acrescente no contrato **e** nos 5 adapters:
+
+```lua
+-- server/lib/framework.bridge.lua — valida a entrada e delega
+---@return boolean ok, string code, string|nil job
+function Framework.getJob(src)
+    return adapter.getJob(src)
+end
+
+-- server/bridge/qbox.lua (dentro da factory)
+function adapter.getJob(src)
+    local player = exports.qbx_core:GetPlayer(src)
+    if (not player) then
+        return false, 'not_loaded'
+    end
+    return true, 'ok', player.PlayerData.job.name
+end
+
+-- server/bridge/standalone.lua
+function adapter.getJob()
     return false, 'not_supported'
 end
 ```
+
+Não tem certeza da assinatura numa framework? Comentário `[confirmar]` no adapter — nunca invente.
 
 ## Armadilhas conhecidas
 
@@ -78,4 +100,6 @@ end
 - `RPC.await` yielda: só dentro de `CreateThread`/NUI callback.
 - `#str` conta bytes — use `utf8.len(str)` para limites de texto.
 - oxmysql devolve DATETIME em ms → `Util.datetimeToUnix`.
+- Dado de jogador carrega em `Framework.onPlayerLoaded`, não no `playerJoining` (multichar: o
+  personagem só existe depois da seleção). Chave = `player.identifier`, que é por personagem.
 - Sem persistência? Não crie `*.schema.lua` e remova `@oxmysql/lib/MySQL.lua` do fxmanifest.
