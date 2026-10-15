@@ -5,6 +5,16 @@ As decisões do projeto entram acima da base herdada do boilerplate.
 
 ## Base do boilerplate
 
+- **Rate limit no RPC.** O listener do server limita pedidos por jogador e por método (janela fixa) e
+  descarta pacote com argumentos demais. Porquê: o evento de RPC é público para qualquer client; sem
+  limite, um client modificado em loop roda handler, query e ponte sem parar. Só métodos registados
+  entram na contagem, então nome inventado não infla memória.
+- **Config só do server em `server/config/`.** `shared/` é baixado pelo client; segredo (webhook, chave)
+  ali vaza para qualquer jogador. A pasta fica aberta no escrow para o comprador configurar.
+- **`Cooldown` com expiração.** Mapa por jogador em RAM (`último uso por identifier`) cresce sem limite
+  em servidor com dias de uptime; a lib limpa chaves vencidas sozinha e padroniza "marcar antes do await".
+- **`fx_version 'bodacious'` + OAL.** Decisão do projeto: bodacious sempre. `use_experimental_fxv2_oal`
+  acelera natives em Lua; contrapartida: coordenadas vão como `x, y, z` (vetor não é desempacotado).
 - **Raiz do repo = resource.** Clonar para `resources/[scripts]/<nome>` e dar `ensure` tem de bastar.
   Docs ficam em `docs/` (o FiveM ignora ficheiros que o manifest não lista).
 - **Framework só pela ponte aberta.** O núcleo não conhece framework nenhuma; o comprador liga a dele em

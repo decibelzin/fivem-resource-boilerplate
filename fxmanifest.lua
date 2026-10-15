@@ -1,6 +1,8 @@
-fx_version 'cerulean'
+fx_version 'bodacious'
 game 'gta5'
 lua54 'yes'
+-- Faster native calls. Pass coordinates to natives as x, y, z: vectors are not unpacked with OAL.
+use_experimental_fxv2_oal 'yes'
 
 name 'fivem-resource-boilerplate'
 description 'Boilerplate de resource FiveM — server autoritativo, módulos em camadas, RPC com retorno'
@@ -26,6 +28,7 @@ client_scripts {
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua', -- no persistence? remove this line and the *.schema.lua files
+    'server/config/*.lua', -- server-only settings: never sent to players (webhooks, API keys)
     'server/lib/*.lua',
     'bridge/bridge.server.lua',
     'server/modules/**/*.lua',
@@ -37,4 +40,5 @@ server_scripts {
 escrow_ignore {
     'bridge/*.lua',
     'shared/config/*.lua',
+    'server/config/*.lua',
 }

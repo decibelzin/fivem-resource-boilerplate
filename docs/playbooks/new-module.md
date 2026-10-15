@@ -11,6 +11,8 @@ Copie o formato, ficheiro a ficheiro, e crie só as camadas que o módulo precis
      estáticas indexadas por id (itens, lojas, locais…).
    - `Messages.<modulo> = { ... }` — todo texto do jogador por chave; erros indexados pelo `code`.
    Nada no manifest (glob). A config é shared: o client já a tem, então o server **nunca** a reenvia.
+   Segredo (webhook, chave de API) **nunca** em `shared/` — vai para `server/config/<modulo>.lua`
+   (`<Modulo>ServerConfig`, também aberto ao comprador, nunca enviado ao client).
 
 2. **Server → client** — pela rede vai só chave/id + o que é dinâmico:
    - Mensagem: `NotifyPlayer(src, '<modulo>.<chave>', ...params)` — sem evento próprio.
@@ -119,6 +121,9 @@ O núcleo não conhece framework: a feature entra como função nova na ponte, s
 - `#str` conta bytes — use `utf8.len(str)` para limites de texto.
 - oxmysql devolve DATETIME em ms → `Util.datetimeToUnix`.
 - Texto pronto, entidade inteira ou definição da config numa payload → errado: chave/id + dinâmico.
+- Mapa por jogador em RAM (`self.x[identifier] = ...`) cresce sem limite: use `Cooldown` (expira sozinho)
+  ou limpe no `playerDropped`.
+- `use_experimental_fxv2_oal`: native recebe coordenadas como `x, y, z` — vetor não é desempacotado.
 - Dado de jogador carrega **sob demanda** (primeiro uso, cache em RAM), invalidado em
   `Framework.onCharacterChanged` e `playerDropped` — nunca de todos no login/arranque/restart.
   Chave = `player.identifier`, que é por personagem.
@@ -176,6 +181,7 @@ Messages.reports = {
         not_online = 'Você ainda não foi carregado no servidor.',
         not_ready = 'O servidor ainda está iniciando.',
         rpc_timeout = 'O servidor não respondeu. Tente de novo.',
+        rpc_rate_limited = 'Calma — você está fazendo isso rápido demais.',
     },
 }
 ```
@@ -292,8 +298,8 @@ ReportsService = class()
 
 function ReportsService:__init()
     self.log = Log.scope('reports')
-    --- identifier → unix do último report (anti-spam; zera no restart do resource).
-    self.lastCreatedAt = {}
+    --- Anti-spam por identifier (RAM; zera no restart; chaves vencidas saem sozinhas).
+    self.cooldowns = Cooldown()
 end
 
 --- Unicast para cada staff online — broadcast -1 é proibido. GetPlayers(), não o cache: staff que
@@ -320,24 +326,21 @@ function ReportsService:create(player, message)
         return false, 'message_too_long'
     end
 
-    local now = os.time()
-    local lastAt = self.lastCreatedAt[player.identifier]
-    if (lastAt and now - lastAt < ReportsConfig.cooldownSeconds) then
-        return false, 'cooldown', { retryIn = ReportsConfig.cooldownSeconds - (now - lastAt) }
+    -- Marca ANTES do primeiro await: o MySQL cede a vez e dois pedidos simultâneos do mesmo
+    -- jogador passariam juntos pelo cooldown. Falhou adiante? release.
+    local free, retryIn = self.cooldowns:take(player.identifier, ReportsConfig.cooldownSeconds)
+    if (not free) then
+        return false, 'cooldown', { retryIn = retryIn }
     end
 
-    -- Marca ANTES do primeiro await: o MySQL cede a vez e dois pedidos simultâneos do mesmo
-    -- jogador passariam juntos pelo cooldown. Falhou adiante? devolve o valor anterior.
-    self.lastCreatedAt[player.identifier] = now
-
     if (reportsRepository:countOpenByAuthor(player.identifier) >= ReportsConfig.maxOpenPerAuthor) then
-        self.lastCreatedAt[player.identifier] = lastAt
+        self.cooldowns:release(player.identifier)
         return false, 'too_many_open'
     end
 
     local report = reportsRepository:create(player.identifier, player.name, message)
     if (not report) then
-        self.lastCreatedAt[player.identifier] = lastAt
+        self.cooldowns:release(player.identifier)
         self.log:error('insert falhou autor=%s', player.identifier)
         return false, 'insert_failed'
     end

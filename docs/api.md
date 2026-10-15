@@ -4,7 +4,9 @@
 > Mudou `server/api/*.lua`, `EVENT`, um comando, uma convar ou a ponte? Atualize este ficheiro no mesmo commit.
 
 Retorno de tudo que pode falhar: **`ok:boolean, code:string, data?`**. Falhas de transporte do RPC chegam
-com `ok = nil`: `rpc_timeout` · `rpc_unknown_method` · `rpc_handler_error`.
+com `ok = nil`: `rpc_timeout` · `rpc_unknown_method` · `rpc_handler_error` · `rpc_rate_limited` (mais de
+`RPC.RATE_LIMIT` pedidos do mesmo jogador ao mesmo método em `RPC.RATE_WINDOW_MS`; padrão 10/s). Pedido
+com mais de `RPC.MAX_ARGS` (8) argumentos é descartado sem resposta.
 
 ## Exports (server → server)
 

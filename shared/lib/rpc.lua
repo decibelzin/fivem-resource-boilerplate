@@ -14,8 +14,13 @@
 --- Handlers (client):  function(...) return ... end
 --- Erro no handler é capturado; o caller recebe nil + 'rpc_handler_error'.
 --- Método inexistente → nil + 'rpc_unknown_method'. Timeout default: 10s → nil + 'rpc_timeout'.
+--- Server: cada jogador tem limite de pedidos por método (excesso → nil + 'rpc_rate_limited') e pedido
+--- com argumentos demais é descartado — um client modificado não consegue floodar handlers/DB.
 RPC = {}
 RPC.TIMEOUT_MS = 10000
+RPC.RATE_LIMIT = 10 -- pedidos por jogador, por método, a cada RATE_WINDOW_MS
+RPC.RATE_WINDOW_MS = 1000
+RPC.MAX_ARGS = 8
 
 local isServer = IsDuplicityVersion()
 local selfResource = GetCurrentResourceName()
@@ -25,6 +30,7 @@ RPC.DEFAULT_TARGET = selfResource
 
 local handlers = {}
 local pending = {}
+local calls = {} -- server: src → método → { startedAt, count } (janela do rate limit)
 local nextRequestId = 0
 local requestListening = false
 local responseListening = false
@@ -71,6 +77,29 @@ local function runHandler(name, args, reply)
     reply({ ok = true, results = results })
 end
 
+--- Janela fixa por (src, método). Só métodos registados chegam aqui: nome inventado pelo client não
+--- cria entrada, então o mapa não cresce além de jogadores × métodos.
+local function withinRateLimit(src, name)
+    local now = GetGameTimer()
+    local bySource = calls[src]
+    if (not bySource) then
+        bySource = {}
+        calls[src] = bySource
+    end
+
+    local window = bySource[name]
+    if (not window or now - window.startedAt >= RPC.RATE_WINDOW_MS) then
+        bySource[name] = { startedAt = now, count = 1 }
+        return true
+    end
+
+    window.count = window.count + 1
+    if (window.count == RPC.RATE_LIMIT + 1) then
+        log:warn('src=%s passou do limite em %s (%d/%dms)', src, name, RPC.RATE_LIMIT, RPC.RATE_WINDOW_MS)
+    end
+    return window.count <= RPC.RATE_LIMIT
+end
+
 --- Listener de pedidos no lado local (lazy: só regista quando há handlers).
 local function ensureRequestListener()
     if (requestListening) then
@@ -82,18 +111,32 @@ local function ensureRequestListener()
         RegisterNetEvent(requestEvent(selfResource, 's'), function(packet)
             local src = source
 
-            -- pacote vem do client: formato inválido é descartado em silêncio.
+            -- pacote vem do client: formato inválido ou argumentos demais → descartado em silêncio.
             if (type(packet) ~= 'table' or type(packet.name) ~= 'string' or type(packet.caller) ~= 'string') then
                 return
             end
 
             local args = type(packet.args) == 'table' and packet.args or {}
-            table.insert(args, 1, src)
+            if (#args > RPC.MAX_ARGS) then
+                return
+            end
 
-            runHandler(packet.name, args, function(response)
+            local function reply(response)
                 response.id = packet.id
                 TriggerClientEvent(responseEvent(packet.caller, 'c'), src, response)
-            end)
+            end
+
+            if (handlers[packet.name] and not withinRateLimit(src, packet.name)) then
+                reply({ ok = false, err = 'rpc_rate_limited' })
+                return
+            end
+
+            table.insert(args, 1, src)
+            runHandler(packet.name, args, reply)
+        end)
+
+        AddEventHandler('playerDropped', function()
+            calls[source] = nil
         end)
         return
     end

@@ -12,7 +12,7 @@ ReportsService = class()
 
 function ReportsService:__init()
     self.log = Log.scope('reports')
-    self.lastCreatedAt = {}
+    self.cooldowns = Cooldown()
 end
 
 function ReportsService:close(id, actor)
@@ -44,6 +44,7 @@ reportsService = ReportsService()
 | Classe | PascalCase | `ReportsService` |
 | Instância global | lowerCamel | `reportsService` |
 | Config do módulo | `<Modulo>Config` em `shared/config/<modulo>.lua` | `ReportsConfig` |
+| Config só do server | `<Modulo>ServerConfig` em `server/config/<modulo>.lua` | `ReportsServerConfig` |
 | Enum | UPPER_SNAKE | `REPORT_STATUS.OPEN` |
 | Código de retorno | snake_case | `'too_many_open'`, `'rpc_timeout'` |
 | Tabela / coluna DB | snake_case, tabela prefixada pelo resource | `boilerplate_reports.closed_at` |
@@ -106,11 +107,18 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
   (`utf8.len`), range e permissão no server. Nunca receba do client preço, quantidade de recompensa,
   coordenada de spawn de item ou "sou admin".
 - Handler que faz `await` (MySQL, RPC) **cede a vez**: dois pedidos do mesmo jogador podem intercalar.
-  Marque o estado (cooldown, lock, "em andamento") **antes** do primeiro await e desfaça se falhar.
+  Marque o estado (cooldown, lock, "em andamento") **antes** do primeiro await e desfaça se falhar —
+  cooldown é `Cooldown:take` / `:release` (expira sozinho; mapa por jogador nunca cresce sem limite).
+- O RPC já limita pedidos por jogador e por método (`RPC.RATE_LIMIT` / `RATE_WINDOW_MS`, excesso →
+  `rpc_rate_limited`) e descarta pacote com mais de `RPC.MAX_ARGS` argumentos. `RegisterNetEvent` cru não
+  tem limite nenhum: prefira RPC; se usar, limite por `src` com `Cooldown` antes de tocar DB ou ponte.
 - Estado replicado para clients (statebag) é só leitura do lado deles — efeito sensível decide-se no server.
 
 ## 7. Arranque, fxmanifest e dependências
 
+- `fx_version 'bodacious'` **sempre**. NUI, quando houver: callback em `http://<resource>/<cb>`.
+- `use_experimental_fxv2_oal 'yes'` (natives mais rápidos): coordenadas vão para o native como `x, y, z` —
+  com OAL o vetor não é desempacotado, e argumento de tipo errado quebra a chamada.
 - Sem `dependency` entre resources — a ordem no `server.cfg` é o contrato (`ensure oxmysql` antes).
 - Sem poll (`while ... Wait()`) esperando outro resource: verificar uma vez, logar e abortar. Quem
   consome este resource usa `exports.<resource>:IsReady()` ou escuta `EVENT.READY`.
@@ -143,12 +151,15 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
   `code`). Server e client resolvem a mesma chave com `Text(key, ...)`; textos do núcleo em `Messages.core`.
 - Enum partilhado client/server vive junto da config do módulo.
 - Valor que muda sem deploy → convar lida por função na config (`GetConvar(...)`).
+- `shared/config/` vai para o client: **segredo nunca ali**. Webhook, chave de API, qualquer coisa que o
+  jogador não pode ler → `server/config/<modulo>.lua` (`<Modulo>ServerConfig`), aberto ao comprador no
+  escrow e nunca enviado ao client.
 
 ## 10. Framework (ponte aberta)
 
 - O núcleo **não conhece framework nenhuma** e nunca a cita. Quem liga a do servidor é o comprador, em
   `bridge/bridge.server.lua` e `bridge/bridge.client.lua` — os únicos ficheiros de código abertos no
-  escrow (`escrow_ignore`, junto com `shared/config/`).
+  escrow (`escrow_ignore`, junto com `shared/config/` e `server/config/`).
 - Ponte = funções pequenas com **default standalone** (o script roda sem configurar) que devolvem valores
   simples (string, número, boolean). O comprador troca o corpo; nome, argumentos e retorno são contrato.
 - O núcleo (`server/lib/framework.lua`) chama `Bridge.*` protegido (`pcall` + log), confere o tipo do
@@ -192,7 +203,11 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 | `MySQL.query(...)` no `*.commands.lua` | Delegar ao service → repository |
 | `return nil` / `error('sem saldo')` em regra de negócio | `return false, 'insufficient'` |
 | `RegisterNetEvent('x:darDinheiro', function(valor) ...)` | Server calcula o valor; client só pede a ação |
-| Cooldown marcado depois do `MySQL.*.await` | Marcar antes do primeiro await (pedidos intercalam) |
+| Cooldown marcado depois do `MySQL.*.await` | `Cooldown:take` antes do primeiro await (pedidos intercalam) |
+| `self.last[identifier] = os.time()` que nunca é limpo | `Cooldown` (expira sozinho) ou limpar no `playerDropped` |
+| Webhook / chave de API em `shared/config/` | `server/config/<modulo>.lua` — shared vai para o client |
+| `RegisterNetEvent` cru que toca DB/ponte sem limite | RPC (já limita) ou `Cooldown` por `src` no handler |
+| `GetDistanceBetweenCoords(coords, ...)` passando vector3 | `x, y, z` separados — OAL não desempacota vetor |
 | Export/função da framework chamado no service | Função na ponte; o service usa `Framework.x` |
 | Carregar dado de todos os online no arranque/restart/login | Sob demanda no primeiro uso, invalidado em `onCharacterChanged`/`playerDropped` |
 | `if #msg > 300` com texto pt-BR | `utf8.len(msg)` — `#` conta bytes, acento vale 2 |

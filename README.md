@@ -33,7 +33,8 @@ shared/
   constants.lua                 RESOURCE, EVENT
   config/                       ABERTO no escrow — tunáveis, definições e textos (core.lua + um por módulo)
 server/
-  lib/command.lua · db.lua · notify.lua · util.lua · framework.lua (núcleo da ponte)
+  config/                       ABERTO no escrow — só server, nunca vai ao client (webhooks, chaves)
+  lib/command.lua · cooldown.lua · db.lua · notify.lua · util.lua · framework.lua (núcleo da ponte)
   modules/player/               cache de jogadores sob demanda
   api/exports.lua · rpc.lua     superfície pública (fina)
   bootstrap.lua                 schema → ready → EVENT.READY
@@ -50,7 +51,7 @@ exemplo completo: [`docs/playbooks/new-module.md`](docs/playbooks/new-module.md)
 
 ## Venda com escrow (Tebex)
 
-Só `bridge/` e `shared/config/` ficam abertos (`escrow_ignore` no `fxmanifest.lua`). O comprador troca
+Só `bridge/`, `shared/config/` e `server/config/` ficam abertos (`escrow_ignore` no `fxmanifest.lua`). O comprador troca
 o corpo das funções de `bridge/` pelo equivalente da framework dele; como vêm, funcionam em standalone
 (license, nome do FiveM, ACE, chat). O identifier é **por personagem**: dado de jogo não se mistura entre
 personagens da mesma conta. Função de ponte publicada não muda entre versões; feature nova entra como

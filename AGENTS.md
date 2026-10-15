@@ -17,7 +17,8 @@ sobre formato, copie o que ele faz.
 | `shared/lib/` | `class()`, `Log.scope`, `RPC` (client ↔ server com retorno), `Text()` / `Messages` (texto por chave) |
 | `shared/constants.lua` | `RESOURCE` e `EVENT` (nomes de evento, prefixados pelo resource) |
 | `shared/config/<modulo>.lua` | **Aberto no escrow.** Tunáveis, definições por id, `Messages.<modulo>` e enums de cada módulo |
-| `server/lib/` | `Schema` (DDL declarativo), `CreateCommand`, `NotifyPlayer`, `Util`, `Framework` (núcleo da ponte) |
+| `server/config/<modulo>.lua` | **Aberto no escrow.** `<Modulo>ServerConfig` — só server (segredos: webhook, chave de API) |
+| `server/lib/` | `Schema` (DDL declarativo), `CreateCommand`, `Cooldown`, `NotifyPlayer`, `Util`, `Framework` (núcleo da ponte) |
 | `server/modules/<modulo>/` | Domínio em camadas: `schema` · `repository` · `entity` · `service` · `events` · `commands` |
 | `server/api/` | Superfície pública: `exports.lua` (server → server) e `rpc.lua` (client → server) |
 | `server/bootstrap.lua` | Schema → `App.ready` → `EVENT.READY` (jogadores entram no cache sob demanda, nunca em massa) |
@@ -52,6 +53,9 @@ sobre formato, copie o que ele faz.
   resolve na config shared (`NotifyPlayer(src, 'mod.chave', ...)`, `Text(key, ...)`).
 - Payload do client é **não confiável**: valide tipo, tamanho, range e permissão no server.
 - Sem `dependency` no fxmanifest e sem poll/`Wait` esperando outro resource: a ordem do `server.cfg` é o contrato.
+- `fx_version 'bodacious'` **sempre**; OAL ligado → coordenadas para natives como `x, y, z`.
+- Segredo nunca em `shared/` (vai para o client) → `server/config/`. Estado por jogador em RAM com
+  expiração (`Cooldown`) ou limpo no `playerDropped`. Ação do client por RPC (já tem rate limit).
 - O núcleo não conhece nem cita framework nenhuma: o que precisar dela é função na ponte (`Bridge.x` com
   default standalone + `Framework.x` no núcleo). `identifier` é **por personagem**.
 - Simplicidade primeiro: helper só se reusado em ≥2 lugares; classe só onde há estado ou regras.
