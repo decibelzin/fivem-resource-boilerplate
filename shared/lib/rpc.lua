@@ -1,4 +1,4 @@
---- RPC client ↔ server com retorno (estilo vRP Tunnel, sem proxy de string mágica).
+--- RPC client ↔ server com retorno, por nome explícito (sem proxy de string mágica).
 ---
 --- Qualquer resource que carrega esta lib pode:
 ---   - registar handlers no seu próprio lado:  RPC.register('reports.create', fn)

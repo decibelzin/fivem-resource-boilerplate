@@ -1,14 +1,10 @@
---- Arranque: framework → schema → App.ready → bind de quem já está online → EVENT.READY.
+--- Arranque: schema → App.ready → bind de quem já está online → EVENT.READY.
 --- Pré-requisito: `ensure oxmysql` e a framework ANTES deste resource no server.cfg (sem poll, sem dependency).
 App = { ready = false }
 
 local log = Log.scope('bootstrap')
 
 CreateThread(function()
-    if (not Framework.isActive()) then
-        return -- o bridge já logou o motivo
-    end
-
     if (#Schema.tables > 0 and GetResourceState('oxmysql') ~= 'started') then
         log:error('oxmysql não está started — ensure oxmysql antes deste resource no server.cfg')
         return

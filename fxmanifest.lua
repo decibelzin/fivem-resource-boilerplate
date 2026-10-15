@@ -13,21 +13,26 @@ shared_scripts {
     'shared/lib/class.lua',
     'shared/lib/log.lua',
     'shared/lib/rpc.lua',
-    'shared/lib/framework.lua',
     'shared/constants.lua',
     'shared/config/*.lua',
 }
 
 client_scripts {
-    'client/lib/*.lua',
+    'bridge/bridge.client.lua',
     'client/modules/**/*.lua',
 }
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua', -- sem persistência? remova esta linha e os *.schema.lua
     'server/lib/*.lua',
-    'server/bridge/*.lua', -- depois de lib/ (Framework.register), antes dos módulos; só a escolhida ativa
+    'bridge/bridge.server.lua',
     'server/modules/**/*.lua',
     'server/api/*.lua',
     'server/bootstrap.lua',
+}
+
+-- Venda com escrow (Tebex): só isto fica aberto para o comprador — ponte com a framework e config.
+escrow_ignore {
+    'bridge/*.lua',
+    'shared/config/*.lua',
 }

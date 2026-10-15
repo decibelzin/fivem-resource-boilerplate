@@ -1,12 +1,12 @@
---- Entrada/saída do registry. O bridge avisa quando o PERSONAGEM fica pronto (standalone: ao entrar;
---- frameworks: depois da seleção) e quando é descarregado (logout / troca de personagem).
+--- Entrada/saída do registry. A ponte avisa quando o PERSONAGEM fica pronto (por padrão ao entrar;
+--- com seleção de personagem, depois dela) e quando é descarregado (logout / troca de personagem).
 --- Antes do App.ready o bootstrap faz o bind de quem já está online.
 Framework.onPlayerLoaded(function(src)
     if (not App.ready) then
         return
     end
 
-    -- Framework sem evento de unload (ex.: vRP) que troque de personagem: o bind antigo seria do outro.
+    -- Troca de personagem sem aviso de unload pela ponte: o bind antigo seria do outro personagem.
     playerRegistry:unbind(src)
 
     local ok, code = playerRegistry:bind(src)

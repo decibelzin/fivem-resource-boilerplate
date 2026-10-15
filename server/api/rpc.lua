@@ -3,7 +3,8 @@
 --- Contrato documentado em docs/api.md — RPC novo entra lá no mesmo commit.
 ---
 --- Convenção de retorno: ok:boolean, code:string, data?:table
---- Caller (client): RPC.await('reports.create', { message = '...' })
+---   RPC.register('<modulo>.<verbo>', withPlayer(function(player, args) return <modulo>Service:x(player, args) end))
+--- Caller (client): RPC.await('<modulo>.<verbo>', { ... }) dentro de thread.
 
 local function guard(handler)
     return function(src, ...)
@@ -23,9 +24,3 @@ local function withPlayer(handler)
         return handler(player, ...)
     end)
 end
-
--- Reports ------------------------------------------------------------------------------
-
-RPC.register('reports.create', withPlayer(function(player, args)
-    return reportsService:create(player, type(args) == 'table' and args.message or nil)
-end))

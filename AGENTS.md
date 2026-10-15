@@ -6,28 +6,28 @@
 ## O que é
 
 Boilerplate de resource FiveM em **Lua 5.4**, **server-autoritativo**. A raiz do repo **é** o resource:
-clona-se para `resources/[scripts]/<nome>` e dá-se `ensure`. Traz as libs (class, log, RPC, schema,
-comandos, bridge da framework) e um módulo de exemplo completo — `reports` — que é a **referência
-canônica**: na dúvida sobre formato, copie o que ele faz.
+clona-se para `resources/[scripts]/<nome>` e dá-se `ensure`. Traz só a estrutura: libs (class, log, RPC,
+schema, comandos), registry de jogadores, a ponte aberta com a framework e os docs. Nenhum módulo de
+feature — o exemplo canônico (`reports`, completo) vive em `docs/playbooks/new-module.md`: na dúvida
+sobre formato, copie o que ele faz.
 
 | Caminho | O que é |
 |---------|---------|
-| `shared/lib/` | `class()`, `Log.scope`, `RPC` (client ↔ server com retorno), `ResolveFramework()` |
+| `bridge/` | **Aberto no escrow.** Ponte com a framework: `bridge.server.lua` (`Bridge.*`) e `bridge.client.lua` (`Notify`) |
+| `shared/lib/` | `class()`, `Log.scope`, `RPC` (client ↔ server com retorno) |
 | `shared/constants.lua` | `RESOURCE` e `EVENT` (nomes de evento, prefixados pelo resource) |
-| `shared/config/<modulo>.lua` | Tunáveis, textos e enums partilhados de cada módulo |
-| `server/lib/` | `Schema` (DDL declarativo), `CreateCommand`, `Util`, `Framework` (contrato do bridge) |
-| `server/bridge/` | Um adapter por framework (`standalone` · `qbox` · `qbcore` · `esx` · `vrp`) — só o escolhido ativa |
+| `shared/config/<modulo>.lua` | **Aberto no escrow.** Tunáveis, textos e enums partilhados de cada módulo |
+| `server/lib/` | `Schema` (DDL declarativo), `CreateCommand`, `Util`, `Framework` (núcleo da ponte) |
 | `server/modules/<modulo>/` | Domínio em camadas: `schema` · `repository` · `entity` · `service` · `events` · `commands` |
 | `server/api/` | Superfície pública: `exports.lua` (server → server) e `rpc.lua` (client → server) |
-| `server/bootstrap.lua` | Framework → schema → `App.ready` → bind de quem já está online → `EVENT.READY` |
-| `client/lib/` | Helpers client (`Notify` — notify nativo da framework, fallback no chat) |
+| `server/bootstrap.lua` | Schema → `App.ready` → bind de quem já está online → `EVENT.READY` |
 | `client/modules/<modulo>/` | `*.api.lua` (wrapper RPC) · `*.events.lua` · `*.commands.lua` |
 | `docs/` | Padrão (`patterns.md`), contrato (`api.md`), receitas (`playbooks/`), `prompts.md`, `decisions.md` |
 
 ## Fluxo de trabalho obrigatório (qualquer tarefa)
 
 1. **Leia `docs/patterns.md`** — é o padrão de código. Não comece grepando às cegas.
-2. Feature/módulo novo → **`docs/playbooks/new-module.md`**, copiando o formato de `server/modules/reports/`.
+2. Feature/módulo novo → **`docs/playbooks/new-module.md`**, copiando o formato do exemplo `reports` dele.
 3. Antes de usar export, RPC ou evento, confira **`docs/api.md`**. Se não está lá, não existe.
 4. **Valide**: revisão de fluxo (quem chama, o que retorna, quem recebe o evento). A sintaxe Lua
    valida-se **arrancando o servidor** (consola sem erro de parse). Se não arrancou, diga-o em vez de
@@ -49,8 +49,8 @@ canônica**: na dúvida sobre formato, copie o que ele faz.
 - Server → client **sempre unicast** (`TriggerClientEvent(evt, src, ...)`). **Broadcast `-1` é proibido.**
 - Payload do client é **não confiável**: valide tipo, tamanho, range e permissão no server.
 - Sem `dependency` no fxmanifest e sem poll/`Wait` esperando outro resource: a ordem do `server.cfg` é o contrato.
-- Framework (standalone/QBox/QBCore/ESX/vRP) só é conhecida pelo bridge (`server/lib/framework.bridge.lua`
-  + `server/bridge/<nome>.lua`), escolhida pela convar `<resource>_framework`. `identifier` é **por personagem**.
+- O núcleo não conhece nem cita framework nenhuma: o que precisar dela é função na ponte (`Bridge.x` com
+  default standalone + `Framework.x` no núcleo). `identifier` é **por personagem**.
 - Simplicidade primeiro: helper só se reusado em ≥2 lugares; classe só onde há estado ou regras.
 
 ## Proibições absolutas

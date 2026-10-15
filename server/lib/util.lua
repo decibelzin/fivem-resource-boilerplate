@@ -2,36 +2,6 @@ Util = {}
 
 local log = Log.scope('util')
 
---- json.encode tolerante: string passa direto, nil continua nil.
-function Util.encodeJson(value)
-    if (value == nil) then
-        return nil
-    end
-    if (type(value) == 'string') then
-        return value
-    end
-    return json.encode(value)
-end
-
---- json.decode tolerante: tabela passa direto (oxmysql pode já devolver decodificado), string
---- decodifica (pcall), nil/inválido → nil.
-function Util.decodeJson(value)
-    if (value == nil or value == '') then
-        return nil
-    end
-    if (type(value) == 'table') then
-        return value
-    end
-    if (type(value) ~= 'string') then
-        return nil
-    end
-    local ok, decoded = pcall(json.decode, value)
-    if (ok) then
-        return decoded
-    end
-    return nil
-end
-
 --- DB datetime → unix seconds. Aceita os formatos que o oxmysql pode devolver: número em
 --- MILISSEGUNDOS (padrão do oxmysql para DATE/DATETIME/TIMESTAMP), string 'YYYY-MM-DD HH:MM:SS'
 --- e ISO 'YYYY-MM-DDTHH:MM:SS'. nil/0/inválido → nil.
@@ -64,14 +34,6 @@ function Util.datetimeToUnix(value)
         year = tonumber(year), month = tonumber(month), day = tonumber(day),
         hour = tonumber(hour), min = tonumber(min), sec = tonumber(sec),
     })
-end
-
---- unix seconds → 'YYYY-MM-DD HH:MM:SS'. nil passa nil.
-function Util.unixToDatetime(unix)
-    if (not unix) then
-        return nil
-    end
-    return os.date('%Y-%m-%d %H:%M:%S', unix)
 end
 
 --- Tira espaços das pontas. Não-string → '' (input do client chega com qualquer tipo).

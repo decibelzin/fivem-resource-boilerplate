@@ -1,7 +1,8 @@
 # patterns.md — padrão de código
 
 Este doc é o alvo de qualquer feature ou refatoração: *"faça X seguindo docs/patterns.md"* deve bastar.
-Referência viva: `server/modules/reports/` + `client/modules/reports/` (módulo completo e canônico).
+Referência: o módulo de exemplo `reports`, completo, em `docs/playbooks/new-module.md` (o template traz
+só a estrutura — nenhum módulo de feature).
 
 ## 1. Classes e instâncias
 
@@ -86,7 +87,7 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 ## 6. Rede e confiança
 
 - Server → client: **unicast sempre** (`TriggerClientEvent(evt, src, ...)`). `-1` proibido — monte a
-  audiência no server (ver `ReportsService:notifyStaff`: loop no `playerRegistry` filtrando permissão).
+  audiência no server (ver `notifyStaff` no exemplo do playbook: loop no `playerRegistry` filtrando permissão).
 - Client → server com retorno: `RPC.await(name, args)` dentro de `CreateThread` (yielda). Fire-and-forget
   simples pode ser `TriggerServerEvent` + `RegisterNetEvent` num `*.events.lua`.
 - **`source` é confiável; os argumentos não.** Valide tipo (`type(args) == 'table'`), tamanho
@@ -115,7 +116,7 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
   **prefixo do resource** no nome. Coluna nova = `Schema.column`. Seed idempotente = `INSERT IGNORE`.
 - Sem migração de dados elaborada: DDL idempotente; o schema nasce sozinho no arranque.
 - Jogador referenciado pelo `Framework.identifier` (por personagem) — sem FK para tabelas de outra framework.
-- Nunca SQL nas tabelas de outra framework/resource: use os exports dela, via bridge.
+- Nunca SQL nas tabelas de outra framework/resource: o que o script precisa dela vem pela ponte.
 - oxmysql devolve DATETIME em **milissegundos** → `Util.datetimeToUnix` no `:applyRow`.
 - Mutação que muda algo de um jogador online: persistir **e** atualizar a RAM/avisar o client.
 - `LIKE` com input do jogador: escapar `% _ \` antes.
@@ -128,25 +129,23 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 - Enum partilhado client/server vive junto da config do módulo.
 - Valor que muda sem deploy → convar lida por função na config (`GetConvar(...)`).
 
-## 10. Framework (bridge)
+## 10. Framework (ponte aberta)
 
-- Só o bridge conhece a framework: `server/lib/framework.bridge.lua` (contrato `Framework.*`) + um
-  adapter por framework em `server/bridge/<nome>.lua` — `standalone`, `qbox`, `qbcore`, `esx`, `vrp`.
-- Escolha **uma vez** no load: convar `<resource>_framework` (`auto` | nome). `auto` detecta por
-  `GetResourceState` na ordem `qbx_core` > `qb-core` > `es_extended` > `vrp` > standalone. Sem poll: a
-  framework sobe antes no `server.cfg`; escolhida mas parada → loga e o resource não fica pronto.
-- Cada adapter chama `Framework.register(nome, factory)`; só a factory da escolhida corre. Por isso os
-  globs continuam order-independent e nenhum código de framework não usada executa.
-- O resto usa `Framework.identifier/displayName/hasPermission/getMoney/addMoney/removeMoney` ou
-  `player:hasPermission(...)`. Contas: `MONEY_ACCOUNT.CASH/BANK`; valor inteiro > 0, calculado no server.
-- **`Framework.identifier` é por personagem** (citizenid · identifier do ESX · Passport do vRP;
-  standalone = license). Dado de jogo pertence ao personagem, não à conta. Personagem só existe depois da
-  seleção: carregue dado de jogador em `Framework.onPlayerLoaded`, nunca no `playerJoining`.
-- Permissão = ACE (vale em todas) **ou** um dos grupos nativos de `FrameworkConfig.groups[permissão]`.
-- Precisa de item, job…? Acrescente a função no contrato do bridge (retorno `ok, code`) **e** nos 5
-  adapters (standalone: `'not_supported'`). Assinatura da framework na dúvida → comentário `[confirmar]`,
-  nunca inventada. Nunca chame `vRP.*`/`exports.qbx_core`/`ESX.*` fora de `server/bridge/`.
-- Client: `Notify` usa o notify nativo da mesma framework (mesma `ResolveFramework`), fallback no chat.
+- O núcleo **não conhece framework nenhuma** e nunca a cita. Quem liga a do servidor é o comprador, em
+  `bridge/bridge.server.lua` e `bridge/bridge.client.lua` — os únicos ficheiros de código abertos no
+  escrow (`escrow_ignore`, junto com `shared/config/`).
+- Ponte = funções pequenas com **default standalone** (o script roda sem configurar) que devolvem valores
+  simples (string, número, boolean). O comprador troca o corpo; nome, argumentos e retorno são contrato.
+- O núcleo (`server/lib/framework.lua`) chama `Bridge.*` protegido (`pcall` + log), confere o tipo do
+  retorno e converte para o padrão do script. Os módulos só usam `Framework.*` ou `player:hasPermission`.
+- **`Framework.identifier` é por personagem**: dado de jogo pertence ao personagem, não à conta. Personagem
+  só existe depois da seleção: carregue dado de jogador em `Framework.onPlayerLoaded`, nunca no `playerJoining`.
+- Permissão = ACE (vale sempre) **ou** `Bridge.hasPermission` (o comprador só soma).
+- Feature que precisa da framework (dinheiro, item, job…) = função nova na ponte, só no script que usa:
+  `Bridge.x` com default + `Framework.x` no núcleo + linha em `docs/api.md` (receita no playbook).
+- Contrato publicado não muda: renomear ou mudar retorno de `Bridge.*` quebra o ficheiro do comprador no
+  update. Função nova entra com default e no changelog.
+- Client: `Notify(message)` (default chat) é a ponte do client.
 
 ## 11. Checklist de refatoração (aplicar nesta ordem)
 
@@ -157,7 +156,7 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 5. snake_case vazando da DB para cima → confinar no `:applyRow`.
 6. Broadcasts `-1` → unicast com audiência montada no server.
 7. Polls entre resources → ordem do `server.cfg` + log de erro.
-8. Chamadas diretas à framework → bridge.
+8. Chamadas diretas à framework → função na ponte (`Bridge.x` + `Framework.x`).
 9. Números/textos mágicos → config.
 10. Helpers de uso único → inline. Comentários de "o quê" → apagar.
 11. Atualizar `docs/api.md` se a superfície mudou.
@@ -177,7 +176,7 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 | `return nil` / `error('sem saldo')` em regra de negócio | `return false, 'insufficient'` |
 | `RegisterNetEvent('x:darDinheiro', function(valor) ...)` | Server calcula o valor; client só pede a ação |
 | Cooldown marcado depois do `MySQL.*.await` | Marcar antes do primeiro await (pedidos intercalam) |
-| `vRP.getUserId(src)` no service | `Framework.identifier(src)` (bridge) |
+| Export/função da framework chamado no service | Função na ponte; o service usa `Framework.x` |
 | Carregar dado de jogador no `playerJoining` | `Framework.onPlayerLoaded` — com multichar o personagem ainda não existe |
 | `if #msg > 300` com texto pt-BR | `utf8.len(msg)` — `#` conta bytes, acento vale 2 |
 | `'Aguarde 2 minutos'` hardcoded no service | Texto na config, indexado pelo `code` |
