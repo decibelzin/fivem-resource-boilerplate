@@ -6,4 +6,7 @@ RESOURCE = GetCurrentResourceName()
 EVENT = {
     --- server → server (outros resources): resource pronto (schema aplicado).
     READY = ('%s:ready'):format(RESOURCE),
+
+    --- server → client (unicast): mensagem por chave. Payload = key, ...params (ver NotifyPlayer).
+    NOTIFY = ('%s:notify'):format(RESOURCE),
 }

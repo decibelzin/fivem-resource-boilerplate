@@ -13,12 +13,14 @@ shared_scripts {
     'shared/lib/class.lua',
     'shared/lib/log.lua',
     'shared/lib/rpc.lua',
+    'shared/lib/text.lua',
     'shared/constants.lua',
     'shared/config/*.lua',
 }
 
 client_scripts {
     'bridge/bridge.client.lua',
+    'client/lib/*.lua',
     'client/modules/**/*.lua',
 }
 

@@ -14,13 +14,14 @@ sobre formato, copie o que ele faz.
 | Caminho | O que é |
 |---------|---------|
 | `bridge/` | **Aberto no escrow.** Ponte com a framework: `bridge.server.lua` (`Bridge.*`) e `bridge.client.lua` (`Notify`) |
-| `shared/lib/` | `class()`, `Log.scope`, `RPC` (client ↔ server com retorno) |
+| `shared/lib/` | `class()`, `Log.scope`, `RPC` (client ↔ server com retorno), `Text()` / `Messages` (texto por chave) |
 | `shared/constants.lua` | `RESOURCE` e `EVENT` (nomes de evento, prefixados pelo resource) |
-| `shared/config/<modulo>.lua` | **Aberto no escrow.** Tunáveis, textos e enums partilhados de cada módulo |
-| `server/lib/` | `Schema` (DDL declarativo), `CreateCommand`, `Util`, `Framework` (núcleo da ponte) |
+| `shared/config/<modulo>.lua` | **Aberto no escrow.** Tunáveis, definições por id, `Messages.<modulo>` e enums de cada módulo |
+| `server/lib/` | `Schema` (DDL declarativo), `CreateCommand`, `NotifyPlayer`, `Util`, `Framework` (núcleo da ponte) |
 | `server/modules/<modulo>/` | Domínio em camadas: `schema` · `repository` · `entity` · `service` · `events` · `commands` |
 | `server/api/` | Superfície pública: `exports.lua` (server → server) e `rpc.lua` (client → server) |
 | `server/bootstrap.lua` | Schema → `App.ready` → `EVENT.READY` (jogadores entram no cache sob demanda, nunca em massa) |
+| `client/lib/` | Recebe `NotifyPlayer` (chave → texto da config → `Notify`) |
 | `client/modules/<modulo>/` | `*.api.lua` (wrapper RPC) · `*.events.lua` · `*.commands.lua` |
 | `docs/` | Padrão (`patterns.md`), contrato (`api.md`), receitas (`playbooks/`), `prompts.md`, `decisions.md` |
 
@@ -47,6 +48,8 @@ sobre formato, copie o que ele faz.
 - SQL só no `*.repository.lua` do módulo dono. Tabelas criadas no arranque via `Schema.table(...)`.
 - API pública só em `server/api/exports.lua` e `server/api/rpc.lua` — services nunca exportam direto.
 - Server → client **sempre unicast** (`TriggerClientEvent(evt, src, ...)`). **Broadcast `-1` é proibido.**
+- Payload server → client **mínima**: só chave/id + o dinâmico. Texto e definição estática o client
+  resolve na config shared (`NotifyPlayer(src, 'mod.chave', ...)`, `Text(key, ...)`).
 - Payload do client é **não confiável**: valide tipo, tamanho, range e permissão no server.
 - Sem `dependency` no fxmanifest e sem poll/`Wait` esperando outro resource: a ordem do `server.cfg` é o contrato.
 - O núcleo não conhece nem cita framework nenhuma: o que precisar dela é função na ponte (`Bridge.x` com

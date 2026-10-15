@@ -6,28 +6,46 @@ Copie o formato, ficheiro a ficheiro, e crie só as camadas que o módulo precis
 
 ## Passos
 
-1. **Config** — `shared/config/<modulo>.lua` com `<Modulo>Config = { ... }` (limites, cooldowns, ACE,
-   nomes de comando, textos do jogador por `code`) e os enums partilhados. Nada no manifest (glob).
-   Ficheiro aberto ao comprador: comentários **em inglês**.
+1. **Config** — `shared/config/<modulo>.lua` (aberto ao comprador: comentários **em inglês**):
+   - `<Modulo>Config = { ... }` — limites, cooldowns, ACE, nomes de comando, enums e as definições
+     estáticas indexadas por id (itens, lojas, locais…).
+   - `Messages.<modulo> = { ... }` — todo texto do jogador por chave; erros indexados pelo `code`.
+   Nada no manifest (glob). A config é shared: o client já a tem, então o server **nunca** a reenvia.
 
-2. **Eventos** — se o módulo empurra algo para o client, acrescente em `shared/constants.lua`:
-   `MEU_EVENTO = ('%s:<modulo>:<acao>'):format(RESOURCE),`
+2. **Server → client** — pela rede vai só chave/id + o que é dinâmico:
+   - Mensagem: `NotifyPlayer(src, '<modulo>.<chave>', ...params)` — sem evento próprio.
+   - Evento próprio só quando o client faz mais do que mostrar texto (UI, estado). Acrescente em
+     `shared/constants.lua` (`MEU_EVENTO = ('%s:<modulo>:<acao>'):format(RESOURCE),`) e mande ids:
+     ```lua
+     -- server: a definição da loja já está em ShopConfig.shops no client — vai o id e o dinâmico
+     TriggerClientEvent(EVENT.SHOP_OPENED, src, shopId, stock)
+
+     -- client
+     RegisterNetEvent(EVENT.SHOP_OPENED, function(shopId, stock)
+         local shop = ShopConfig.shops[shopId]
+         if (not shop or type(stock) ~= 'table') then
+             return
+         end
+         ...
+     end)
+     ```
 
 3. **Schema** (`server/modules/<modulo>/<modulo>.schema.lua`) — se persiste dados. Tabela prefixada pelo
    resource, `CREATE TABLE IF NOT EXISTS`. Coluna nova em tabela existente = `Schema.column(...)`;
    dados base = `Schema.seed(...)` com `INSERT IGNORE`.
 
-4. **Entity** (`<modulo>.entity.lua`) — `class()` com campos camelCase, `:applyRow(row)` e `:toPayload()`
-   (o que pode sair para client/exports — nunca identifiers alheios).
+4. **Entity** (`<modulo>.entity.lua`) — `class()` com campos camelCase e `:applyRow(row)`. A entidade
+   nunca vai inteira pela rede: o service escolhe os campos que o destinatário usa.
 
 5. **Repository** (`<modulo>.repository.lua`) — todo o SQL; hidrata entidades com um `local function hydrate`.
 
-6. **Service** (`<modulo>.service.lua`) — regras. Métodos retornam `ok, code, data?`. Recebe
-   `OnlinePlayer` (não `source`) quando a ação é de um jogador. Estado anti-spam/lock marcado antes do
-   primeiro await. Eventos para client sempre unicast.
+6. **Service** (`<modulo>.service.lua`) — regras. Métodos retornam `ok, code, data?` (`data` mínimo: o id,
+   não a entidade). Recebe `OnlinePlayer` (não `source`) quando a ação é de um jogador. Estado
+   anti-spam/lock marcado antes do primeiro await. Avisos por `NotifyPlayer`, sempre unicast.
 
 7. **Adapters** (opcionais, finos):
-   - `<modulo>.commands.lua` — `CreateCommand(Config.commands.x, handler, { console = true, permission = Config.permission })`.
+   - `<modulo>.commands.lua` — `CreateCommand(Config.commands.x, handler, { console = true, permission = Config.permission })`;
+     resposta por chave: `commandManager:reply(ctx, '<modulo>.<chave>', ...)`.
    - `<modulo>.events.lua` — `RegisterNetEvent` cru (cheque `App.ready` e valide o payload).
 
 8. **API pública**:
@@ -36,8 +54,9 @@ Copie o formato, ficheiro a ficheiro, e crie só as camadas que o módulo precis
 
 9. **Client** (`client/modules/<modulo>/`):
    - `<modulo>.api.lua` — `class()` com um método por RPC (`RPC.await`).
-   - `<modulo>.commands.lua` — `RegisterCommand` + `CreateThread` + feedback por `code` via `Notify`.
-   - `<modulo>.events.lua` — `RegisterNetEvent(EVENT.X, ...)` validando `type(payload) == 'table'`.
+   - `<modulo>.commands.lua` — `RegisterCommand` + `CreateThread` + feedback pelo `code`:
+     `Notify(Text(('<modulo>.errors.%s'):format(code)) or ...)`.
+   - `<modulo>.events.lua` — só para eventos próprios: resolve o id na config e valida os tipos.
 
 10. **Docs** — `docs/api.md` (exports, RPC, eventos, comandos, tipos). Decisão de arquitetura →
     `docs/decisions.md`.
@@ -99,6 +118,7 @@ O núcleo não conhece framework: a feature entra como função nova na ponte, s
 - `RPC.await` yielda: só dentro de `CreateThread`/NUI callback.
 - `#str` conta bytes — use `utf8.len(str)` para limites de texto.
 - oxmysql devolve DATETIME em ms → `Util.datetimeToUnix`.
+- Texto pronto, entidade inteira ou definição da config numa payload → errado: chave/id + dinâmico.
 - Dado de jogador carrega **sob demanda** (primeiro uso, cache em RAM), invalidado em
   `Framework.onCharacterChanged` e `playerDropped` — nunca de todos no login/arranque/restart.
   Chave = `player.identifier`, que é por personagem.
@@ -108,8 +128,8 @@ O núcleo não conhece framework: a feature entra como função nova na ponte, s
 
 ## Exemplo completo — `reports`
 
-Documente também em `docs/api.md`: RPC `reports.create`, eventos `REPORT_CREATED`/`REPORT_CLOSED`,
-comandos `/report` e `/closereport`, tipo `ReportPayload`. No `server.cfg`:
+Documente também em `docs/api.md`: RPC `reports.create` e os comandos `/report` e `/closereport`.
+Nenhum evento próprio: todo aviso é `NotifyPlayer` com chave de `Messages.reports`. No `server.cfg`:
 `add_ace group.admin reports.manage allow`.
 
 ### `shared/config/reports.lua`
@@ -130,39 +150,34 @@ ReportsConfig = {
     --- Minimum seconds between reports from the same player (in memory — resets on resource restart).
     cooldownSeconds = 120,
     maxOpenPerAuthor = 3,
-
-    --- Text shown to the player. Errors are keyed by the `code` returned by the server.
-    messages = {
-        sent = 'Report #%s enviado — a staff foi avisada.',
-        closed = 'Seu report #%s foi fechado pela staff.',
-        staffNew = 'Report #%s de %s: %s',
-        fallbackError = 'Não foi possível enviar o report (%s).',
-        errors = {
-            message_too_short = 'Descreva melhor o problema.',
-            message_too_long = 'Mensagem longa demais.',
-            cooldown = 'Aguarde um pouco antes de enviar outro report.',
-            too_many_open = 'Você já tem reports abertos demais.',
-            not_online = 'Você ainda não foi carregado no servidor.',
-            not_ready = 'O servidor ainda está iniciando.',
-            rpc_timeout = 'O servidor não respondeu. Tente de novo.',
-        },
-    },
 }
 
 REPORT_STATUS = {
     OPEN = 'open',
     CLOSED = 'closed',
 }
-```
 
-### `shared/constants.lua` (dentro de `EVENT`)
-
-```lua
-    --- server → client (unicast, só staff): report novo. Payload = ReportPayload.
-    REPORT_CREATED = ('%s:reports:created'):format(RESOURCE),
-
-    --- server → client (unicast, só o autor): report fechado. Payload = ReportPayload.
-    REPORT_CLOSED = ('%s:reports:closed'):format(RESOURCE),
+--- Text shown to the player. Keep the keys and the %s placeholders; errors are keyed by the `code`
+--- returned by the server.
+Messages.reports = {
+    sent = 'Report #%s enviado — a staff foi avisada.',
+    closed = 'Seu report #%s foi fechado pela staff.',
+    staffNew = 'Report #%s de %s: %s',
+    closedByStaff = 'Report #%s fechado.',
+    fallbackError = 'Não foi possível concluir (%s).',
+    errors = {
+        message_too_short = 'Descreva melhor o problema.',
+        message_too_long = 'Mensagem longa demais.',
+        cooldown = 'Aguarde um pouco antes de enviar outro report.',
+        too_many_open = 'Você já tem reports abertos demais.',
+        invalid_id = 'Id de report inválido.',
+        not_found = 'Report não encontrado.',
+        already_closed = 'Esse report já foi fechado.',
+        not_online = 'Você ainda não foi carregado no servidor.',
+        not_ready = 'O servidor ainda está iniciando.',
+        rpc_timeout = 'O servidor não respondeu. Tente de novo.',
+    },
+}
 ```
 
 ### `server/modules/reports/reports.schema.lua`
@@ -204,24 +219,6 @@ end
 
 function Report:isOpen()
     return self.status == REPORT_STATUS.OPEN
-end
-
-function Report:markClosed(actor)
-    self.status = REPORT_STATUS.CLOSED
-    self.closedBy = actor
-    self.closedAt = os.time()
-end
-
---- Payload seguro para client/exports — sem o identifier do autor.
-function Report:toPayload()
-    return {
-        id = self.id,
-        authorName = self.authorName,
-        message = self.message,
-        status = self.status,
-        createdAt = self.createdAt,
-        closedAt = self.closedAt,
-    }
 end
 ```
 
@@ -290,7 +287,7 @@ reportsRepository = ReportsRepository()
 ### `server/modules/reports/reports.service.lua`
 
 ```lua
---- Reports de jogador → staff. Fluxo: validar → persistir → avisar a audiência (unicast).
+--- Reports de jogador → staff. Fluxo: validar → persistir → avisar a audiência (unicast, por chave).
 ReportsService = class()
 
 function ReportsService:__init()
@@ -299,19 +296,19 @@ function ReportsService:__init()
     self.lastCreatedAt = {}
 end
 
---- Unicast para cada staff online — broadcast -1 é proibido (vaza dado e pesa na rede).
---- GetPlayers(), não o cache: staff que ainda não usou o script também tem de ser avisado.
-function ReportsService:notifyStaff(payload)
+--- Unicast para cada staff online — broadcast -1 é proibido. GetPlayers(), não o cache: staff que
+--- ainda não usou o script também tem de ser avisado. Vai a chave + o dinâmico, nunca o texto.
+function ReportsService:notifyStaff(report)
     for _, src in ipairs(GetPlayers()) do
         if (Framework.hasPermission(src, ReportsConfig.permission)) then
-            TriggerClientEvent(EVENT.REPORT_CREATED, src, payload)
+            NotifyPlayer(src, 'reports.staffNew', report.id, report.authorName, report.message)
         end
     end
 end
 
 ---@param player table OnlinePlayer
 ---@param message any texto vindo do client — não confiável
----@return boolean ok, string code, table|nil data ReportPayload | { retryIn }
+---@return boolean ok, string code, number|table|nil data id do report | { retryIn }
 function ReportsService:create(player, message)
     message = Util.trim(message)
 
@@ -345,13 +342,12 @@ function ReportsService:create(player, message)
         return false, 'insert_failed'
     end
 
-    local payload = report:toPayload()
-    self:notifyStaff(payload)
-    return true, 'ok', payload
+    self:notifyStaff(report)
+    return true, 'ok', report.id
 end
 
 ---@param actor string quem fechou (identifier, 'console', 'resource:<nome>')
----@return boolean ok, string code, table|nil ReportPayload
+---@return boolean ok, string code, number|nil id
 function ReportsService:close(id, actor)
     id = math.floor(tonumber(id) or 0)
     if (id < 1) then
@@ -367,15 +363,12 @@ function ReportsService:close(id, actor)
         return false, 'already_closed'
     end
 
-    report:markClosed(actor)
-    local payload = report:toPayload()
-
     -- Só acha o autor se ele está no cache (usou o script desde o arranque) — offline não é avisado.
     local authorSource = playerRegistry:getSourceByIdentifier(report.authorIdentifier)
     if (authorSource) then
-        TriggerClientEvent(EVENT.REPORT_CLOSED, authorSource, payload)
+        NotifyPlayer(authorSource, 'reports.closed', id)
     end
-    return true, 'ok', payload
+    return true, 'ok', id
 end
 
 reportsService = ReportsService()
@@ -384,15 +377,15 @@ reportsService = ReportsService()
 ### `server/modules/reports/reports.commands.lua`
 
 ```lua
---- /closereport <id> — staff ou console.
+--- /closereport <id> — staff ou console. Resposta por chave: o texto vem da config de quem lê.
 CreateCommand(ReportsConfig.commands.close, function(ctx, args)
-    local ok, code, report = reportsService:close(args[1], ctx.actor)
+    local ok, code, id = reportsService:close(args[1], ctx.actor)
     if (not ok) then
-        commandManager:reply(ctx, ('Falhou: %s'):format(code))
+        commandManager:reply(ctx, ('reports.errors.%s'):format(code))
         return
     end
 
-    commandManager:reply(ctx, ('Report #%s fechado.'):format(report.id))
+    commandManager:reply(ctx, 'reports.closedByStaff', id)
 end, { console = true, permission = ReportsConfig.permission })
 ```
 
@@ -421,40 +414,16 @@ reportsApi = ReportsApi()
 ### `client/modules/reports/reports.commands.lua`
 
 ```lua
---- /report <mensagem> — cria um report via RPC. O server valida tudo de novo.
+--- /report <mensagem> — cria um report via RPC. O server valida tudo de novo e devolve só o code/id.
 RegisterCommand(ReportsConfig.commands.create, function(_, args)
     CreateThread(function()
-        local ok, code, report = reportsApi:create(table.concat(args, ' '))
-        local messages = ReportsConfig.messages
-
+        local ok, code, reportId = reportsApi:create(table.concat(args, ' '))
         if (not ok) then
-            Notify(messages.errors[code] or messages.fallbackError:format(code))
+            Notify(Text(('reports.errors.%s'):format(code)) or Text('reports.fallbackError', code))
             return
         end
 
-        Notify(messages.sent:format(report.id))
+        Notify(Text('reports.sent', reportId))
     end)
 end, false)
-```
-
-### `client/modules/reports/reports.events.lua`
-
-```lua
---- Staff: report novo (o server só envia para quem tem a permissão).
-RegisterNetEvent(EVENT.REPORT_CREATED, function(report)
-    if (type(report) ~= 'table') then
-        return
-    end
-
-    Notify(ReportsConfig.messages.staffNew:format(report.id, report.authorName, report.message))
-end)
-
---- Autor: o report dele foi fechado.
-RegisterNetEvent(EVENT.REPORT_CLOSED, function(report)
-    if (type(report) ~= 'table') then
-        return
-    end
-
-    Notify(ReportsConfig.messages.closed:format(report.id))
-end)
 ```

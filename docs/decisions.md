@@ -20,6 +20,11 @@ As decisões do projeto entram acima da base herdada do boilerplate.
   depende da ponte do comprador e dos módulos — desconhecido — e um servidor com milhares online
   travaria a thread num restart. Contrapartida: audiência por permissão percorre `GetPlayers()`, e o
   índice identifier → source só acha quem está no cache.
+- **Payload mínimo; estático resolvido no client por chave/id.** A config é shared, então o client já tem
+  textos e definições: o server manda só a chave/id e o dinâmico (`NotifyPlayer(src, key, ...)`, eventos
+  com ids). Porquê: menos rede por evento (pesa com milhares online), uma única fonte de texto — o
+  comprador traduz a config uma vez e server e client mostram o mesmo — e nada de texto ou entidade
+  montado no server vazando campos que o client não usa.
 - **ACE vale sempre.** `add_ace` funciona em qualquer servidor; a ponte só soma permissões.
 - **Eventos prefixados por `GetCurrentResourceName()`.** Renomear a pasta não exige caçar strings e dois
   resources feitos do boilerplate nunca colidem. RPC já é isolado por resource na própria lib.

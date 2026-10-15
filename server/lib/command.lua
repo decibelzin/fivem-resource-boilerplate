@@ -34,17 +34,16 @@ function CommandManager:canExecute(ctx, access)
     return access.permission ~= nil and Framework.hasPermission(ctx.source, access.permission)
 end
 
---- Resposta ao invocador (print no console ou chat unicast).
-function CommandManager:reply(ctx, message)
+--- Resposta ao invocador por chave de texto: console imprime o texto resolvido aqui; jogador recebe só a
+--- chave + parâmetros (NotifyPlayer) e resolve na config dele.
+---@param key string chave em `Messages` (ex.: 'reports.closedByStaff')
+function CommandManager:reply(ctx, key, ...)
     if (ctx.isConsole) then
-        print(('[%s] %s'):format(RESOURCE, message))
+        print(('[%s] %s'):format(RESOURCE, Text(key, ...) or key))
         return
     end
 
-    TriggerClientEvent('chat:addMessage', ctx.source, {
-        color = { 255, 255, 255 },
-        args = { RESOURCE, message },
-    })
+    NotifyPlayer(ctx.source, key, ...)
 end
 
 function CommandManager:register(name, handler, access)
@@ -57,12 +56,12 @@ function CommandManager:register(name, handler, access)
         local ctx = self:buildContext(invokerSource)
 
         if (not self:canExecute(ctx, access)) then
-            self:reply(ctx, 'Sem permissão.')
+            self:reply(ctx, 'core.noPermission')
             return
         end
 
         if (not App.ready) then
-            self:reply(ctx, 'O resource ainda não terminou o arranque.')
+            self:reply(ctx, 'core.notReady')
             return
         end
 

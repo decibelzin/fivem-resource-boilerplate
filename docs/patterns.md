@@ -48,10 +48,11 @@ reportsService = ReportsService()
 | Código de retorno | snake_case | `'too_many_open'`, `'rpc_timeout'` |
 | Tabela / coluna DB | snake_case, tabela prefixada pelo resource | `boilerplate_reports.closed_at` |
 | Campo de entidade/payload | camelCase | `authorName`, `createdAt` |
-| Evento de rede | `EVENT.X` = `<resource>:<modulo>:<acao>` | `EVENT.REPORT_CLOSED` |
+| Evento de rede | `EVENT.X` = `<resource>:<modulo>:<acao>` | `EVENT.SHOP_OPENED` |
 | RPC | `<modulo>.<verboCamel>` | `reports.create` |
 | ACE | `<modulo>.<acao>` | `reports.manage` |
 | Convar | `<resource>_<tema>` | `<resource>_log_level` |
+| Chave de texto | `<modulo>.<chaveCamel>` · erro: `<modulo>.errors.<code>` | `reports.staffNew` |
 
 ## 3. Retornos e erros
 
@@ -67,7 +68,7 @@ reportsService = ReportsService()
 |--------|------|----------|
 | `*.schema.lua` | DDL (`Schema.table/column/seed`) | Lógica, SELECT |
 | `*.repository.lua` | SQL, hidratar entidades | Regra de negócio, eventos |
-| `*.entity.lua` | Dados + regras puras do próprio objeto (`isOpen`, `toPayload`) | SQL, rede |
+| `*.entity.lua` | Dados + regras puras do próprio objeto (`isOpen`) | SQL, rede |
 | `*.service.lua` | Regras, chamar repos/outros services, eventos unicast | SQL se o módulo TEM repository |
 | `*.events.lua` / `*.commands.lua` | Validar input, delegar a service, responder | Regra de negócio, SQL |
 | `server/api/*.lua` | Expor exports/RPC delegando a services | Qualquer lógica |
@@ -91,6 +92,14 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 - Server → client: **unicast sempre** (`TriggerClientEvent(evt, src, ...)`). `-1` proibido — monte a
   audiência no server (ver `notifyStaff` no exemplo do playbook: loop em `GetPlayers()` filtrando com
   `Framework.hasPermission` — o cache de jogadores só tem quem já usou o script).
+- **Payload mínimo server → client.** A config é shared — o client já a tem. Tudo que é estático (texto,
+  label, definição de item/loja/local, ícone, preço de exibição) o client resolve pela chave/id; pela rede
+  vai só a chave/id e o que é dinâmico (nome do autor, quantidade, mensagem digitada):
+  - mensagem ao jogador → `NotifyPlayer(src, 'reports.closed', id)`, nunca o texto pronto;
+  - evento próprio → `TriggerClientEvent(EVENT.X, src, shopId, stock)`, nunca a definição da loja;
+  - entidade nunca vai inteira — só os campos que o destinatário usa;
+  - retorno de RPC → `code` + o mínimo de `data` (o id, não a entidade); o client mostra
+    `Text(('<modulo>.errors.%s'):format(code))`.
 - Client → server com retorno: `RPC.await(name, args)` dentro de `CreateThread` (yielda). Fire-and-forget
   simples pode ser `TriggerServerEvent` + `RegisterNetEvent` num `*.events.lua`.
 - **`source` é confiável; os argumentos não.** Valide tipo (`type(args) == 'table'`), tamanho
@@ -129,7 +138,9 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 ## 9. Config
 
 - Tudo que um humano pode querer ajustar vive em `shared/config/<modulo>.lua`: limites, cooldowns,
-  nomes de comando, ACE, **textos mostrados ao jogador** (indexados pelo `code` de retorno).
+  nomes de comando, ACE, definições estáticas indexadas por id.
+- Texto do jogador vive em `Messages.<modulo>` no mesmo ficheiro (chave → texto; erros indexados pelo
+  `code`). Server e client resolvem a mesma chave com `Text(key, ...)`; textos do núcleo em `Messages.core`.
 - Enum partilhado client/server vive junto da config do módulo.
 - Valor que muda sem deploy → convar lida por função na config (`GetConvar(...)`).
 
@@ -185,6 +196,7 @@ Módulo pequeno sem repository pode ter SQL no próprio service — mas SQL **nu
 | Export/função da framework chamado no service | Função na ponte; o service usa `Framework.x` |
 | Carregar dado de todos os online no arranque/restart/login | Sob demanda no primeiro uso, invalidado em `onCharacterChanged`/`playerDropped` |
 | `if #msg > 300` com texto pt-BR | `utf8.len(msg)` — `#` conta bytes, acento vale 2 |
-| `'Aguarde 2 minutos'` hardcoded no service | Texto na config, indexado pelo `code` |
+| `'Aguarde 2 minutos'` hardcoded no service | Texto em `Messages.<modulo>`, indexado pelo `code` |
+| `TriggerClientEvent(evt, src, report)` / texto pronto / definição da config na payload | Chave/id + só o dinâmico; o client resolve na config (`NotifyPlayer`, `Text`) |
 | Condição morta / checagem repetida no mesmo item | Remover; guardar o resultado num local e reusar |
 | Editar o fxmanifest para adicionar ficheiro de módulo | Globs já cobrem — só criar o ficheiro |

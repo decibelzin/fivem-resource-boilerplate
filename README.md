@@ -26,18 +26,19 @@ gh repo create meu-script --template decibelzin/fivem-resource-boilerplate --pri
 ```text
 fxmanifest.lua
 bridge/                         ABERTO no escrow — liga o script à framework do servidor
-  bridge.server.lua             identifier do personagem, nome, permissão, personagem carregou/saiu
+  bridge.server.lua             identifier do personagem, nome, permissão, troca de personagem
   bridge.client.lua             Notify
 shared/
-  lib/class.lua · log.lua · rpc.lua
+  lib/class.lua · log.lua · rpc.lua · text.lua (texto por chave)
   constants.lua                 RESOURCE, EVENT
-  config/                       ABERTO no escrow — tunáveis e textos de cada módulo
+  config/                       ABERTO no escrow — tunáveis, definições e textos (core.lua + um por módulo)
 server/
-  lib/command.lua · db.lua · util.lua · framework.lua (núcleo da ponte)
+  lib/command.lua · db.lua · notify.lua · util.lua · framework.lua (núcleo da ponte)
   modules/player/               cache de jogadores sob demanda
   api/exports.lua · rpc.lua     superfície pública (fina)
   bootstrap.lua                 schema → ready → EVENT.READY
 client/
+  lib/notify.lua                mensagem do server por chave → texto da config → Notify
   modules/                      um diretório por módulo
 docs/
   patterns.md · api.md · decisions.md · prompts.md · playbooks/new-module.md

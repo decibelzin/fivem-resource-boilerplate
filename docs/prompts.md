@@ -41,6 +41,7 @@ Liste o que mudou de contrato (eventos/exports) antes de mexer.
 
 ```text
 Revise o diff contra docs/patterns.md §6 e §12: broadcast -1, payload do client sem validação, await
-antes de marcar cooldown/lock, SQL fora do repository, texto/número mágico fora da config, export/RPC
-sem linha em docs/api.md, framework chamada fora da ponte. Aponte arquivo:linha.
+antes de marcar cooldown/lock, SQL fora do repository, texto/número mágico fora da config, payload
+server → client com texto pronto/entidade/definição da config (tem de ser chave/id + dinâmico),
+export/RPC sem linha em docs/api.md, framework chamada fora da ponte. Aponte arquivo:linha.
 ```

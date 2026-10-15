@@ -24,6 +24,17 @@ _Nenhum ainda._
 | Evento | Direção | Audiência | Payload |
 |--------|---------|-----------|---------|
 | `EVENT.READY` (`<resource>:ready`) | server local | outros resources | — |
+| `EVENT.NOTIFY` (`<resource>:notify`) | server → client | unicast (`NotifyPlayer`) | `key, ...params` — o client resolve o texto em `Messages` |
+
+Payload server → client leva só chave/id + o dinâmico; o estático o client resolve na config
+(ver `docs/patterns.md` §6).
+
+## Textos (`Messages`, em `shared/config/`)
+
+| Chave | Params | Onde |
+|-------|--------|------|
+| `core.noPermission` | — | resposta de comando sem permissão |
+| `core.notReady` | — | resposta de comando antes do arranque |
 
 ## Comandos
 
